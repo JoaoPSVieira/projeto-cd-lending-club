@@ -28,5 +28,23 @@ ds-lending-club/
 ├── .gitignore                # Ficheiros e diretórios ignorados pelo Git
 ├── README.md                 # Documentação do projeto
 └── requirements.txt          # Dependências Python
+```
 
+## Tarefas
+- Regressão: prever `int_rate` com informação pré-pricing
+- Classificação: desfecho do empréstimo em 3 classes (Good standing / At risk / Default)
+- Clustering: mutuários e estados
 
+## Setup
+```text
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+## Dados
+Fazer download de https://www.kaggle.com/datasets/wordsforthewise/lending-club e colocar os CSVs em `data/raw/`.
+
+## Grupo
+- 2103823 - João Pedro Sá Vieira
+- Soares
