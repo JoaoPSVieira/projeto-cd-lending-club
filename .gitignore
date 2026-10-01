@@ -223,3 +223,26 @@ __marimo__/
 
 # Adicionado manualmente
 
+# Dados
+data/
+*.csv
+*.parquet
+*.zip
+
+# Modelos treinados
+models/
+
+# Outputs dos notebooks
+.ipynb_checkpoints/
+
+# Ambiente virtual
+.venv/
+venv/
+
+# PyCharm
+.idea/
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
