@@ -1,0 +1,246 @@
+% =====================================================================
+% Secção 1 — Formulação do Problema
+% Texto para o relatório (template IEEE). Baseado em docs/01_formulacao_problema/.
+% Pacotes usados: nenhum além dos do template IEEEtran.
+% Para acentuação correta, o preâmbulo deve ter:
+%   \usepackage[utf8]{inputenc}  \usepackage[T1]{fontenc}  \usepackage[portuguese]{babel}
+% =====================================================================
+
+\section{Formulação do Problema}
+\label{sec:formulacao}
+
+Este trabalho utiliza o conjunto de dados \textit{Lending Club Loan Data (2007--2018)},
+disponibilizado no Kaggle pela LendingClub, a maior plataforma norte-americana de
+empréstimos \textit{peer-to-peer}. Os dados estão divididos em dois ficheiros:
+\texttt{accepted\_2007\_to\_2018Q4.csv}, em que cada linha é um empréstimo financiado,
+descrito por 151 colunas (perfil de crédito do mutuário, condições do empréstimo e
+histórico de pagamentos), e \texttt{rejected\_2007\_to\_2018Q4.csv}, em que cada linha é
+um pedido recusado, descrito por 9 colunas.
+
+Todas as decisões desta secção --- tarefas, momentos de previsão, elegibilidade das
+variáveis, coortes e divisão dos dados --- foram tomadas \textbf{antes} da análise
+exploratória, com base apenas no enunciado e no dicionário de dados. O objetivo é evitar
+que estas escolhas sejam influenciadas pelos resultados observados e, assim, prevenir a
+fuga de informação (\textit{data leakage}).
+
+% ---------------------------------------------------------------------
+\subsection{Definição das tarefas}
+
+Nas tarefas supervisionadas, a unidade de análise é um empréstimo financiado.
+
+\textbf{Regressão.} Prever a taxa de juro anual (\texttt{int\_rate}) que a LendingClub
+atribuiria a um pedido, no momento em que este é submetido e antes de a taxa ser fixada,
+usando apenas as características do pedido e o perfil de crédito do requerente.
+A população é o conjunto de todos os empréstimos financiados, uma vez que a taxa é
+conhecida para todos desde a concessão.
+
+\textbf{Classificação.} Prever, no momento da concessão do empréstimo --- quando as
+condições (taxa, grau de risco e prestação) já estão fixadas, mas nenhum pagamento foi
+observado --- o desfecho do empréstimo em três classes: \textit{Good standing},
+\textit{At risk} e \textit{Default}.
+
+\textbf{Clustering.} Identificar, sem prever qualquer alvo, grupos de mutuários com perfis
+de crédito semelhantes e grupos de estados norte-americanos com comportamento semelhante
+em termos de taxa de aprovação, montantes pedidos e \textit{risk scores}, combinando
+pedidos aceites e rejeitados.
+
+% ---------------------------------------------------------------------
+\subsection{Momentos de previsão e informação disponível}
+
+Uma variável só pode ser usada como preditor se o seu valor já for conhecido no momento
+de previsão da tarefa. Para aplicar este critério, a vida de um empréstimo foi dividida
+nos momentos da Tabela~\ref{tab:momentos}. A regressão é feita em T0 e a classificação
+em T4; o clustering usa apenas o perfil do mutuário em T0.
+
+\begin{table}[!t]
+\caption{Momentos da vida de um empréstimo e informação que passa a existir}
+\label{tab:momentos}
+\centering
+\footnotesize
+\begin{tabular}{|p{0.22\columnwidth}|p{0.66\columnwidth}|}
+\hline
+\textbf{Momento} & \textbf{Exemplos de informação} \\
+\hline
+T0 Pedido & montante, prazo, finalidade, emprego, rendimento, DTI, localização, histórico de crédito (\textit{bureau}), campos do 2.º proponente \\
+\hline
+T1 Verificação & \texttt{verification\_status} \\
+\hline
+T2 \textit{Pricing} & \texttt{grade}, \texttt{sub\_grade}, \texttt{int\_rate}, \texttt{installment} \\
+\hline
+T3 Financiamento & \texttt{funded\_amnt}, \texttt{initial\_list\_status} \\
+\hline
+T4 Concessão & \texttt{issue\_d}, \texttt{disbursement\_method} \\
+\hline
+T5 Pagamentos & \texttt{total\_pymnt}, \texttt{recoveries}, \texttt{hardship\_*}, \texttt{settlement\_*}, \ldots \\
+\hline
+T6 Extração & \texttt{loan\_status}, \texttt{last\_fico\_range\_*}, \texttt{last\_credit\_pull\_d} \\
+\hline
+\end{tabular}
+\end{table}
+
+Destacam-se três consequências. Primeiro, \texttt{issue\_d} corresponde ao mês de
+financiamento e não à data do pedido; por isso não é usado como preditor na regressão,
+servindo apenas para a divisão temporal. Segundo, a antiguidade do histórico de crédito é
+calculada relativamente a \texttt{issue\_d} na classificação, mas na regressão recorre-se a
+variáveis de antiguidade já calculadas pelo \textit{bureau} (por exemplo,
+\texttt{mo\_sin\_old\_rev\_tl\_op}), para não usar uma data futura. Terceiro, não sendo
+possível garantir que a verificação do rendimento termina antes do \textit{pricing},
+\texttt{verification\_status} é excluído da regressão. Assume-se que os campos do
+\textit{bureau} refletem o relatório de crédito obtido no pedido, o que constitui uma
+limitação deste instantâneo histórico.
+
+% ---------------------------------------------------------------------
+\subsection{Elegibilidade das variáveis}
+
+Cada uma das 151 colunas foi classificada, para cada tarefa, como elegível, condicional ou
+não elegível. A tabela completa encontra-se no repositório
+(\texttt{docs/01\_formulacao\_problema/elegibilidade\_colunas.md}); a
+Tabela~\ref{tab:elegibilidade} resume-a. Elegibilidade significa apenas que a utilização
+da variável não constitui fuga de informação; a seleção final é feita mais tarde, com base
+nos dados de treino.
+
+\begin{table}[!t]
+\caption{Resumo da elegibilidade das 151 colunas}
+\label{tab:elegibilidade}
+\centering
+\footnotesize
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\textbf{Tarefa} & \textbf{Elegível} & \textbf{Condicional} & \textbf{Excluída} & \textbf{Alvo} \\
+\hline
+Regressão & 92 & 4 & 54 & 1 \\
+\hline
+Classificação & 102 & 3 & 45 & 1 \\
+\hline
+Clustering & 74 & 1 & 76 & -- \\
+\hline
+\end{tabular}
+\end{table}
+
+As principais decisões foram:
+\begin{itemize}
+  \item \textbf{Desempenho pós-concessão} (38 colunas: pagamentos, recuperações,
+  \texttt{hardship\_*}, \texttt{settlement\_*}, \texttt{last\_fico\_range\_*}): excluídas em
+  todas as tarefas, bem como quaisquer variáveis delas derivadas.
+  \item \textbf{Variáveis de \textit{pricing}} (\texttt{grade}, \texttt{sub\_grade},
+  \texttt{installment}): excluídas da regressão, porque determinam ou permitem reconstruir
+  a taxa; permitidas na classificação, por já estarem fixadas na concessão.
+  \item \textbf{Histórico de crédito} (69 colunas): elegível nas três tarefas, incluindo
+  campos como \texttt{acc\_now\_delinq} ou \texttt{chargeoff\_within\_12\_mths}, que
+  descrevem outras contas do mutuário à data do pedido e não o empréstimo em análise.
+  \item \textbf{Pedido conjunto} (\texttt{application\_type}, \texttt{*\_joint},
+  \texttt{sec\_app\_*}): elegíveis; nos pedidos individuais, a ausência de valor é tratada
+  como \textit{não aplicável} e não é substituída por zero.
+  \item \textbf{Geografia} (\texttt{zip\_code}, \texttt{addr\_state}): não constitui fuga de
+  informação, mas é condicionada a uma análise de \textit{fairness}, por poder funcionar
+  como \textit{proxy} de características sensíveis.
+  \item \textbf{Casos de processo}: na classificação, \texttt{funded\_amnt} e
+  \texttt{initial\_list\_status} são permitidos, por serem conhecidos antes da concessão;
+  \texttt{funded\_amnt\_inv} e \texttt{disbursement\_method} são excluídos, por o momento
+  em que ficam definidos ser incerto.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\subsection{Coorte e alvo}
+
+O alvo da classificação é construído a partir de \texttt{loan\_status}, cujos valores
+distintos foram listados (sem contagens) para definir o mapeamento da
+Tabela~\ref{tab:alvo}. Os empréstimos ``\textit{Does not meet the credit policy}'',
+concedidos ao abrigo de critérios de crédito anteriores, são incluídos e mapeados pelo seu
+desfecho; esta indicação não é usada como preditor, por estar codificada na coluna do alvo.
+Os empréstimos \textit{Current} são excluídos, por o seu desfecho ainda não ser conhecido.
+A regressão não filtra por \texttt{loan\_status}.
+
+\begin{table}[!t]
+\caption{Construção do alvo da classificação}
+\label{tab:alvo}
+\centering
+\footnotesize
+\begin{tabular}{|p{0.25\columnwidth}|p{0.63\columnwidth}|}
+\hline
+\textbf{Classe} & \textbf{Valores de \texttt{loan\_status}} \\
+\hline
+Good standing & Fully Paid; Does not meet the credit policy. Status:Fully Paid \\
+\hline
+At risk & In Grace Period; Late (16--30 days); Late (31--120 days) \\
+\hline
+Default & Charged Off; Default; Does not meet the credit policy. Status:Charged Off \\
+\hline
+Excluído & Current; sem valor \\
+\hline
+\end{tabular}
+\end{table}
+
+A exclusão dos \textit{Current} introduz um viés de seguimento desigual
+(\textit{unequal follow-up}): nas coortes recentes, os empréstimos já terminados são
+sobretudo os que entraram em incumprimento cedo ou foram pagos antecipadamente. Este
+problema é resolvido no desenho da divisão temporal.
+
+% ---------------------------------------------------------------------
+\subsection{Desenho da divisão temporal}
+
+As partições usam cortes de calendário explícitos sobre \texttt{issue\_d}, no início de cada
+mês, de modo que empréstimos do mesmo mês ficam sempre na mesma partição. Define-se um
+\textit{cutoff} de observação comum a 31/12/2018, justificado pela cobertura documentada do
+conjunto de dados (até ao 4.º trimestre de 2018) e não inferido a partir das datas de
+pagamento. Simula-se um modelo treinado a 01/01/2015 e aplicado aos empréstimos concedidos
+em 2015. A Tabela~\ref{tab:split} resume as partições.
+
+\begin{table}[!t]
+\caption{Partições temporais por tarefa (\texttt{issue\_d})}
+\label{tab:split}
+\centering
+\footnotesize
+\begin{tabular}{|p{0.22\columnwidth}|p{0.30\columnwidth}|p{0.30\columnwidth}|}
+\hline
+\textbf{Partição} & \textbf{Regressão} & \textbf{Classificação} \\
+\hline
+Treino e validação & 2007-06 a 2014-12 & 2007-06 a 2011-12 \\
+\hline
+Embargo & -- & 2012-01 a 2014-12 \\
+\hline
+Teste final & 2015 & 2015 \\
+\hline
+Não usado & 2016--2018 & 2016--2018 \\
+\hline
+Coorte & Todos os financiados & 36 meses, não \textit{Current}, prazo terminado \\
+\hline
+\end{tabular}
+\end{table}
+
+Na regressão, o alvo é conhecido na concessão, pelo que todos os rótulos de treino eram
+observáveis na data simulada. A validação é feita por validação cruzada temporal com
+janela expansível por ano civil.
+
+Na classificação, um rótulo só é usado se o empréstimo já tiver atingido o fim do prazo
+(\texttt{issue\_d} + \texttt{term}) na data relevante. O treino inclui, assim, os
+empréstimos de 36 meses concedidos até 2011-12, cujo prazo terminou antes da data de treino
+simulada; os concedidos entre 2012 e 2014 ficam num período de embargo, por ainda não terem
+terminado em 01/01/2015; e o teste final usa os concedidos em 2015, que terminam antes do
+\textit{cutoff}. Esta regra garante que os rótulos de treino eram observáveis na data
+simulada e que todos os empréstimos têm um seguimento completo, eliminando o viés referido.
+Como os empréstimos de 60 meses de 2015 só terminariam em 2020, a classificação fica
+definida apenas para empréstimos de 36 meses.
+
+A análise exploratória, os testes de hipóteses e o clustering usam apenas o período de
+desenvolvimento (2007--2014); as análises que envolvem o desfecho usam apenas o treino da
+classificação. O teste final é usado uma única vez, no fim do trabalho. Todas as
+transformações aprendidas a partir dos dados são ajustadas apenas no treino de cada
+\textit{fold}; eventuais reamostragens são aplicadas apenas dentro dos \textit{folds} de
+treino, e as amostras são aleatórias, com semente fixa.
+
+% ---------------------------------------------------------------------
+\subsection{Limitações}
+
+\begin{itemize}
+  \item Os campos do pedido e do \textit{bureau} são assumidos como registados no momento do
+  pedido; \texttt{loan\_amnt} pode refletir reduções feitas pelo departamento de crédito.
+  \item A classe \textit{At risk} corresponde ao estado do empréstimo na data de extração e
+  não a um desfecho final; com a regra do prazo terminado, torna-se rara.
+  \item O rótulo usado é o estado a 31/12/2018 e não o estado exato na data de treino
+  simulada.
+  \item A classificação usa um treino reduzido (2007--2011) e é avaliada num período
+  posterior, depois de mudanças na política de crédito e no mercado.
+  \item A identificação de mutuários repetidos depende da disponibilidade de
+  \texttt{member\_id}, verificada na limpeza.
+\end{itemize}
