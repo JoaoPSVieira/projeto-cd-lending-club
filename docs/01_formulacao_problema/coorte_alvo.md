@@ -44,8 +44,12 @@ registado na tabela de exclusões/mapeamentos da limpeza.
 
 ### 1.3 Coorte da classificação
 
-> Empréstimos financiados, com `loan_status` preenchido e diferente de `Current`,
-> concedidos no período de desenvolvimento ou de teste definido no desenho do split.
+> Empréstimos financiados **de 36 meses**, com `loan_status` preenchido e diferente de
+> `Current`, cujo prazo já tinha terminado na data de referência, concedidos nos períodos
+> de treino ou de teste definidos em [`desenho_split.md`](desenho_split.md).
+
+A restrição aos 36 meses e ao prazo terminado resulta da regra de observabilidade dos
+rótulos e é justificada no desenho do split.
 
 ### 1.4 Limitações do alvo
 
@@ -56,16 +60,16 @@ registado na tabela de exclusões/mapeamentos da limpeza.
   já terminaram são sobretudo os que entraram em incumprimento cedo ou foram pagos
   antecipadamente; os restantes ainda estão `Current`. As coortes recentes ficam por isso
   enviesadas. O mesmo acontece com os empréstimos de 60 meses, que precisam de mais tempo
-  para terminar. Este problema (*unequal follow-up*) é tratado no desenho do split, através
-  da escolha do período e de uma data de observação comum.
+  para terminar. Este problema (*unequal follow-up*) é resolvido no desenho do split:
+  só se usam empréstimos cujo prazo já tinha terminado.
 
 ---
 
 ## 2. Regressão
 
-> Todos os empréstimos financiados com `int_rate` preenchido, incluindo `Current` e
-> "Does not meet the credit policy", concedidos no período de desenvolvimento ou de teste
-> definido no desenho do split.
+> Todos os empréstimos financiados com `int_rate` preenchido (36 e 60 meses), incluindo
+> `Current` e "Does not meet the credit policy", concedidos nos períodos de
+> desenvolvimento ou de teste definidos em [`desenho_split.md`](desenho_split.md).
 
 A taxa é fixada no pricing e é conhecida para todos os empréstimos, independentemente do
 desfecho. Por isso, `loan_status` **não** é usado para filtrar a coorte da regressão.
@@ -90,6 +94,6 @@ No clustering de estados, os pedidos rejeitados são associados ao estado pela c
 | Tarefa | Inclui | Exclui |
 |---|---|---|
 | Regressão | Todos os financiados com `int_rate` | — |
-| Classificação | Fully Paid, Late, In Grace Period, Charged Off, Default, "Does not meet…" | `Current`, sem estado |
+| Classificação | 36 meses com prazo terminado: Fully Paid, Late, In Grace Period, Charged Off, Default, "Does not meet…" | `Current`, sem estado, 60 meses, prazo por terminar (embargo) |
 | Clustering — mutuários | Financiados (desenvolvimento) | Período de teste |
 | Clustering — estados | Aceites + rejeitados (desenvolvimento) | Período de teste |
