@@ -35,8 +35,8 @@ conhecido e final.
 
 | Opção | Vantagem | Desvantagem |
 |---|---|---|
-| **A — Incluir, mapeando pelo desfecho (escolhida)** | São empréstimos reais com desfecho conhecido; não se perde informação | Pertencem a uma política de crédito diferente |
-| B — Excluir | População mais homogénea (só a política atual) | Perde casos com desfecho conhecido, sobretudo dos primeiros anos |
+| **A - Incluir, mapeando pelo desfecho (escolhida)** | São empréstimos reais com desfecho conhecido; não se perde informação | Pertencem a uma política de crédito diferente |
+| B - Excluir | População mais homogénea (só a política atual) | Perde casos com desfecho conhecido, sobretudo dos primeiros anos |
 
 **Decisão:** opção A. A indicação "does not meet the credit policy" **não** é usada como
 preditor, porque está codificada na coluna do alvo. O número de casos afetados é
@@ -93,7 +93,7 @@ No clustering de estados, os pedidos rejeitados são associados ao estado pela c
 
 | Tarefa | Inclui | Exclui |
 |---|---|---|
-| Regressão | Todos os financiados com `int_rate` | — |
+| Regressão | Todos os financiados com `int_rate` | - |
 | Classificação | 36 meses com prazo terminado: Fully Paid, Late, In Grace Period, Charged Off, Default, "Does not meet…" | `Current`, sem estado, 60 meses, prazo por terminar (embargo) |
-| Clustering — mutuários | Financiados (desenvolvimento) | Período de teste |
-| Clustering — estados | Aceites + rejeitados (desenvolvimento) | Período de teste |
+| Clustering - mutuários | Financiados (desenvolvimento) | Período de teste |
+| Clustering - estados | Aceites + rejeitados (desenvolvimento) | Período de teste |

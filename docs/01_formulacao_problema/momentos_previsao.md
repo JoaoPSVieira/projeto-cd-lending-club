@@ -23,13 +23,13 @@ tabela de elegibilidade das colunas.
 
 | Momento | O que acontece | Informação que passa a existir (exemplos) |
 |---|---|---|
-| **T0 — Pedido submetido** | O requerente preenche o pedido; é consultado o relatório de crédito (*bureau*) | `loan_amnt`, `term`, `purpose`, `title`, `emp_title`, `emp_length`, `home_ownership`, `annual_inc`, `dti`, `addr_state`, `zip_code`, `application_type`, campos do 2.º proponente (`*_joint`, `sec_app_*`), histórico de crédito (`fico_range_*`, `earliest_cr_line`, `delinq_2yrs`, `inq_last_6mths`, `open_acc`, `revol_util`, `tot_cur_bal`, `mo_sin_*`, `num_*`, ...) |
-| **T1 — Verificação** | A LendingClub pode verificar o rendimento declarado | `verification_status`, `verification_status_joint` |
-| **T2 — Pricing** | É atribuído o grau de risco e a taxa | `grade`, `sub_grade`, `int_rate`, `installment` |
-| **T3 — Listagem e financiamento** | O empréstimo é listado e financiado por investidores | `initial_list_status`, `funded_amnt`, `funded_amnt_inv` |
-| **T4 — Concessão** | O dinheiro é entregue; o empréstimo começa | `issue_d` (mês de financiamento), `disbursement_method` |
-| **T5 — Pagamentos** | O mutuário paga (ou não) as prestações | `total_pymnt*`, `total_rec_*`, `out_prncp*`, `last_pymnt_*`, `next_pymnt_d`, `recoveries`, `collection_recovery_fee`, `hardship_*`, `settlement_*`, `debt_settlement_flag*` |
-| **T6 — Extração** | Fotografia do estado do empréstimo no fim de 2018 | `loan_status`, `last_credit_pull_d`, `last_fico_range_*` |
+| **T0 - Pedido submetido** | O requerente preenche o pedido; é consultado o relatório de crédito (*bureau*) | `loan_amnt`, `term`, `purpose`, `title`, `emp_title`, `emp_length`, `home_ownership`, `annual_inc`, `dti`, `addr_state`, `zip_code`, `application_type`, campos do 2.º proponente (`*_joint`, `sec_app_*`), histórico de crédito (`fico_range_*`, `earliest_cr_line`, `delinq_2yrs`, `inq_last_6mths`, `open_acc`, `revol_util`, `tot_cur_bal`, `mo_sin_*`, `num_*`, ...) |
+| **T1 - Verificação** | A LendingClub pode verificar o rendimento declarado | `verification_status`, `verification_status_joint` |
+| **T2 - Pricing** | É atribuído o grau de risco e a taxa | `grade`, `sub_grade`, `int_rate`, `installment` |
+| **T3 - Listagem e financiamento** | O empréstimo é listado e financiado por investidores | `initial_list_status`, `funded_amnt`, `funded_amnt_inv` |
+| **T4 - Concessão** | O dinheiro é entregue; o empréstimo começa | `issue_d` (mês de financiamento), `disbursement_method` |
+| **T5 - Pagamentos** | O mutuário paga (ou não) as prestações | `total_pymnt*`, `total_rec_*`, `out_prncp*`, `last_pymnt_*`, `next_pymnt_d`, `recoveries`, `collection_recovery_fee`, `hardship_*`, `settlement_*`, `debt_settlement_flag*` |
+| **T6 - Extração** | Fotografia do estado do empréstimo no fim de 2018 | `loan_status`, `last_credit_pull_d`, `last_fico_range_*` |
 
 > **Pressuposto:** os campos de crédito (*bureau*) refletem o relatório obtido no pedido
 > (T0). O ficheiro é uma fotografia histórica, por isso não é possível confirmar o momento
@@ -37,7 +37,7 @@ tabela de elegibilidade das colunas.
 
 ---
 
-## Regressão — momento T0 (antes do pricing)
+## Regressão - momento T0 (antes do pricing)
 
 **Informação disponível:** apenas a de **T0**, ou seja, as características do pedido e o
 perfil de crédito do requerente.
@@ -54,7 +54,7 @@ perfil de crédito do requerente.
 
 ---
 
-## Classificação — momento T4 (concessão)
+## Classificação - momento T4 (concessão)
 
 **Informação disponível:** tudo o que existe **até T4**, ou seja, o pedido, a verificação,
 o pricing, o financiamento e a data de concessão. Nenhum pagamento foi ainda observado.
@@ -71,7 +71,7 @@ o pricing, o financiamento e a data de concessão. Nenhum pagamento foi ainda ob
 
 ---
 
-## Clustering — sem momento de previsão
+## Clustering - sem momento de previsão
 
 Não há previsão, mas para os grupos serem interpretáveis como **perfis no momento do
 pedido** usam-se apenas variáveis de T0 (perfil de crédito e indicadores de risco). Para os

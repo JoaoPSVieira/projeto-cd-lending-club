@@ -38,7 +38,7 @@ As decisões foram tomadas a partir do enunciado e do dicionário de dados
 
 ---
 
-## Grupo 1 — Empréstimo: pedido e condições
+## Grupo 1 - Empréstimo: pedido e condições
 
 | Coluna | Descrição | Momento | Regressão | Classificação | Clustering | Justificação |
 |---|---|---|---|---|---|---|
@@ -51,14 +51,14 @@ As decisões foram tomadas a partir do enunciado e do dicionário de dados
 | `sub_grade` | Subgrau LC (A1–G5) | T2 | ❌ | ✅ | ❌ | Igual a `grade` |
 | `installment` | Prestação mensal | T2 | ❌ | ✅ | ❌ | Calculada a partir de `loan_amnt`, `term` e `int_rate` (fórmula de amortização): permitiria reconstruir a taxa. Fixada na concessão e não depende do desfecho |
 | `funded_amnt` | Montante comprometido para o empréstimo | T3 | ❌ | ✅ | ❌ | Posterior ao pricing. Na concessão (T4) o financiamento já está concluído, por isso o valor é conhecido |
-| `funded_amnt_inv` | Parte financiada por investidores | T3 | ❌ | ❌ | ❌ | Posterior ao pricing. Descreve a repartição do financiamento entre investidores e não o risco do mutuário; o dicionário ("*at that point in time*") não garante que seja o valor na concessão — excluído por precaução |
+| `funded_amnt_inv` | Parte financiada por investidores | T3 | ❌ | ❌ | ❌ | Posterior ao pricing. Descreve a repartição do financiamento entre investidores e não o risco do mutuário; o dicionário ("*at that point in time*") não garante que seja o valor na concessão - excluído por precaução |
 | `initial_list_status` | Modo de listagem inicial (W/F) | T3 | ❌ | ✅ | ❌ | Decidido na listagem, depois do pricing. Na concessão já é conhecido e "*initial*" garante que é o valor original |
 | `disbursement_method` | Modo de desembolso | T4 | ❌ | ❌ | ❌ | Momento de definição incerto (pode ser escolhido ou alterado até ao desembolso). O enunciado manda excluir em caso de dúvida |
 | `issue_d` | Mês de financiamento | T4 | ❌ | ⚠️ | ❌ | Mês de financiamento, não data do pedido: futuro em relação a T0. Usado na **divisão temporal** de todas as tarefas. Na classificação só como feature temporal justificada (ex.: ano de concessão) e como referência para a antiguidade do crédito |
 
 ---
 
-## Grupo 2 — Mutuário
+## Grupo 2 - Mutuário
 
 | Coluna | Descrição | Momento | Regressão | Classificação | Clustering | Justificação |
 |---|---|---|---|---|---|---|
@@ -73,7 +73,7 @@ As decisões foram tomadas a partir do enunciado e do dicionário de dados
 
 ---
 
-## Grupo 3 — Histórico de crédito (*bureau*)
+## Grupo 3 - Histórico de crédito (*bureau*)
 
 Pressuposto comum a todo o grupo: os valores refletem o relatório de crédito obtido **no
 momento do pedido** (T0) e descrevem as **outras contas** do mutuário, não o empréstimo
@@ -82,11 +82,11 @@ atrasos ou cobranças (o enunciado indica que não devem ser excluídos só por 
 Nas variáveis `mths_since_*`, um valor em falta pode significar "o evento nunca aconteceu"
 (não aplicável), o que é tratado no pré-processamento.
 
-### 3a — Pontuação e antiguidade do crédito
+### 3a - Pontuação e antiguidade do crédito
 
 | Coluna | Descrição | Momento | Regressão | Classificação | Clustering | Justificação |
 |---|---|---|---|---|---|---|
-| `fico_range_low` | Limite inferior do intervalo FICO | T0 | ✅ | ✅ | ✅ | Pontuação de crédito; indicador de risco do enunciado. Dicionário refere "*at loan origination*" — assume-se o valor do pedido |
+| `fico_range_low` | Limite inferior do intervalo FICO | T0 | ✅ | ✅ | ✅ | Pontuação de crédito; indicador de risco do enunciado. Dicionário refere "*at loan origination*" - assume-se o valor do pedido |
 | `fico_range_high` | Limite superior do intervalo FICO | T0 | ✅ | ✅ | ✅ | Igual a `fico_range_low` |
 | `earliest_cr_line` | Mês da linha de crédito mais antiga | T0 | ⚠️ | ✅ | ✅ | Data anterior ao pedido. Na regressão **não** pode ser convertida em antiguidade com `issue_d` (data futura); usar referência anterior ao pricing ou `mo_sin_old_*`. Na classificação, antiguidade = `issue_d − earliest_cr_line` |
 | `mo_sin_old_il_acct` | Meses desde a conta a prestações mais antiga | T0 | ✅ | ✅ | ✅ | Antiguidade calculada pelo *bureau* |
@@ -96,7 +96,7 @@ Nas variáveis `mths_since_*`, um valor em falta pode significar "o evento nunca
 | `mths_since_rcnt_il` | Meses desde a conta a prestações mais recente | T0 | ✅ | ✅ | ✅ | Histórico do *bureau* |
 | `mths_since_recent_bc` | Meses desde o cartão bancário mais recente | T0 | ✅ | ✅ | ✅ | Histórico do *bureau* |
 
-### 3b — Atrasos, cobranças e registos negativos
+### 3b - Atrasos, cobranças e registos negativos
 
 | Coluna | Descrição | Momento | Regressão | Classificação | Clustering | Justificação |
 |---|---|---|---|---|---|---|
@@ -120,7 +120,7 @@ Nas variáveis `mths_since_*`, um valor em falta pode significar "o evento nunca
 | `pub_rec_bankruptcies` | N.º de falências registadas | T0 | ✅ | ✅ | ✅ | Histórico do *bureau* |
 | `tax_liens` | N.º de penhoras fiscais | T0 | ✅ | ✅ | ✅ | Histórico do *bureau* |
 
-### 3c — Contas e consultas
+### 3c - Contas e consultas
 
 | Coluna | Descrição | Momento | Regressão | Classificação | Clustering | Justificação |
 |---|---|---|---|---|---|---|
@@ -150,7 +150,7 @@ Nas variáveis `mths_since_*`, um valor em falta pode significar "o evento nunca
 | `inq_fi` | Consultas de financiamento pessoal | T0 | ✅ | ✅ | ✅ | Histórico do *bureau* |
 | `mths_since_recent_inq` | Meses desde a consulta mais recente | T0 | ✅ | ✅ | ✅ | Histórico do *bureau* |
 
-### 3d — Saldos, limites e utilização
+### 3d - Saldos, limites e utilização
 
 | Coluna | Descrição | Momento | Regressão | Classificação | Clustering | Justificação |
 |---|---|---|---|---|---|---|
@@ -173,7 +173,7 @@ Nas variáveis `mths_since_*`, um valor em falta pode significar "o evento nunca
 
 ---
 
-## Grupo 4 — Pedido conjunto e 2.º proponente
+## Grupo 4 - Pedido conjunto e 2.º proponente
 
 Estes campos **não são fuga de informação**: são preenchidos no pedido. Contudo, só se
 aplicam a pedidos conjuntos (`application_type` = Joint). Num pedido individual, a
@@ -204,13 +204,13 @@ perfil do proponente principal.
 
 ---
 
-## Grupo 5 — Desempenho pós-concessão
+## Grupo 5 - Desempenho pós-concessão
 
 Todas estas colunas descrevem o que aconteceu **depois da concessão** (T5–T6):
 pagamentos, recuperações, renegociações e acordos. Excluídas em todas as tarefas, como
 indica o enunciado. Também são proibidas variáveis **derivadas** destas colunas (flags,
 rácios, contagens de valores preenchidos), mesmo depois de as colunas originais serem
-removidas — por exemplo `has_recovery` ou uma contagem de campos `hardship_*` não nulos.
+removidas - por exemplo `has_recovery` ou uma contagem de campos `hardship_*` não nulos.
 
 | Coluna | Descrição | Momento | Regressão | Classificação | Clustering | Justificação |
 |---|---|---|---|---|---|---|
@@ -255,15 +255,15 @@ removidas — por exemplo `has_recovery` ou uma contagem de campos `hardship_*` 
 
 ---
 
-## Grupo 6 — Identificadores, administrativos e alvo
+## Grupo 6 - Identificadores, administrativos e alvo
 
 | Coluna | Descrição | Momento | Regressão | Classificação | Clustering | Justificação |
 |---|---|---|---|---|---|---|
-| `id` | Identificador do empréstimo | — | ❌ | ❌ | ❌ | Identificador sem significado preditivo. Usado na deteção de duplicados |
-| `member_id` | Identificador do mutuário | — | ❌ | ❌ | ❌ | Identificador. Seria útil para detetar mutuários repetidos; a sua disponibilidade é verificada na limpeza |
-| `url` | Endereço da página do empréstimo | — | ❌ | ❌ | ❌ | Administrativo (enunciado) |
+| `id` | Identificador do empréstimo | - | ❌ | ❌ | ❌ | Identificador sem significado preditivo. Usado na deteção de duplicados |
+| `member_id` | Identificador do mutuário | - | ❌ | ❌ | ❌ | Identificador. Seria útil para detetar mutuários repetidos; a sua disponibilidade é verificada na limpeza |
+| `url` | Endereço da página do empréstimo | - | ❌ | ❌ | ❌ | Administrativo (enunciado) |
 | `desc` | Descrição escrita pelo mutuário | T0 | ❌ | ❌ | ❌ | Não é fuga de informação, mas o enunciado classifica-o como administrativo e provavelmente irrelevante |
-| `policy_code` | Código de política (1 = público, 2 = novos produtos) | — | ❌ | ❌ | ❌ | Administrativo (enunciado) |
+| `policy_code` | Código de política (1 = público, 2 = novos produtos) | - | ❌ | ❌ | ❌ | Administrativo (enunciado) |
 | `loan_status` | Estado do empréstimo à data da extração | T6 | ❌ | 🎯 | ❌ | Usado **apenas** para construir o alvo da classificação e definir a coorte (exclusão dos `Current`). Nunca é preditor |
 
 ---
@@ -274,7 +274,7 @@ removidas — por exemplo `has_recovery` ou uma contagem de campos `hardship_*` 
 |---|---|---|---|---|---|
 | Regressão | 92 | 4 | 54 | 1 | 151 |
 | Classificação | 102 | 3 | 45 | 1 | 151 |
-| Clustering (mutuários) | 74 | 1 | 76 | — | 151 |
+| Clustering (mutuários) | 74 | 1 | 76 | - | 151 |
 
 **Condicionais:**
 - Regressão: `zip_code`, `addr_state` (*fairness*), `earliest_cr_line`, `sec_app_earliest_cr_line` (antiguidade sem `issue_d`).

@@ -10,7 +10,7 @@ Unidade de análise nas tarefas supervisionadas: **um empréstimo financiado**
 
 ---
 
-## 1. Regressão — taxa de juro
+## 1. Regressão - taxa de juro
 
 **Definição:** prever a taxa de juro anual (`int_rate`, em %) que a LendingClub
 atribuiria a um pedido de empréstimo, **no momento em que o pedido é submetido, antes
@@ -26,11 +26,11 @@ finalidade) e o perfil de crédito do requerente.
 
 ---
 
-## 2. Classificação — desfecho do empréstimo
+## 2. Classificação - desfecho do empréstimo
 
-**Definição:** prever, **no momento da concessão do empréstimo** — quando as condições
+**Definição:** prever, **no momento da concessão do empréstimo** - quando as condições
 (taxa, grau de risco, prestação) já estão fixadas, mas nenhum pagamento foi ainda
-observado — em qual de três classes de desfecho o empréstimo vai terminar.
+observado - em qual de três classes de desfecho o empréstimo vai terminar.
 
 | Classe | Valores de `loan_status` |
 |---|---|
@@ -47,7 +47,7 @@ observado — em qual de três classes de desfecho o empréstimo vai terminar.
 
 ---
 
-## 3. Clustering — agrupamento descritivo
+## 3. Clustering - agrupamento descritivo
 
 **Definição:** identificar grupos de perfis semelhantes **sem prever nenhum alvo**. A
 tarefa é exploratória e não tem momento de previsão.
@@ -60,5 +60,5 @@ tarefa é exploratória e não tem momento de previsão.
 | Elemento | Decisão |
 |---|---|
 | Alvo | Nenhum (aprendizagem não supervisionada) |
-| Momento | Não aplicável — descreve a população, não prevê casos futuros |
+| Momento | Não aplicável - descreve a população, não prevê casos futuros |
 | Objetivo | Encontrar segmentos interpretáveis de mutuários e de estados |
