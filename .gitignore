@@ -246,3 +246,6 @@ venv/
 .Rhistory
 .RData
 .Rproj.user/
+
+# Exceções
+!docs/LCDataDictionary.csv
