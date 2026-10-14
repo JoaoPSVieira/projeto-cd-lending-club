@@ -84,8 +84,8 @@ tocar no período de teste final.
 ## Questões em aberto (resolvidas nos documentos seguintes)
 
 - Decisão final, coluna a coluna, para `funded_amnt`, `funded_amnt_inv`,
-  `initial_list_status` e `disbursement_method` → tabela de elegibilidade.
-- Campos do 2.º proponente: distinguir "não aplicável" (pedido individual) de "em falta" →
+  `initial_list_status` e `disbursement_method` -> tabela de elegibilidade.
+- Campos do 2.º proponente: distinguir "não aplicável" (pedido individual) de "em falta" ->
   tabela de elegibilidade.
-- Data a partir da qual os desfechos são observáveis e escolha do período de teste →
+- Data a partir da qual os desfechos são observáveis e escolha do período de teste ->
   desenho do split.

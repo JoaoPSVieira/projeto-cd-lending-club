@@ -42,7 +42,7 @@ Os pedidos **rejeitados** seguem os mesmos cortes, usando `Application Date`.
 |---|---|
 | Coorte | Todos os empréstimos financiados com `int_rate` preenchido (36 e 60 meses, incluindo `Current`) |
 | Treino + validação | `issue_d` de 2007-06 a 2014-12 |
-| Validação | Validação cruzada temporal com **janela expansível** por ano civil: cada *fold* treina com todos os anos anteriores e valida no ano seguinte (ex.: treino até 2010 → valida 2011; …; treino até 2013 → valida 2014) |
+| Validação | Validação cruzada temporal com **janela expansível** por ano civil: cada *fold* treina com todos os anos anteriores e valida no ano seguinte (ex.: treino até 2010 -> valida 2011; …; treino até 2013 -> valida 2014) |
 | Teste final | `issue_d` de 2015-01 a 2015-12 |
 
 **Observabilidade do alvo:** `int_rate` é conhecido no momento da concessão. Na data de

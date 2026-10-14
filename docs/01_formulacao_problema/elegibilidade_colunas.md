@@ -62,7 +62,7 @@ As decisões foram tomadas a partir do enunciado e do dicionário de dados
 
 | Coluna | Descrição | Momento | Regressão | Classificação | Clustering | Justificação |
 |---|---|---|---|---|---|---|
-| `emp_title` | Cargo / empregador (texto livre) | T0 | ✅ | ✅ | ❌ | Declarado no pedido. Texto livre com muitas categorias. Mudança de significado a 23/09/2013 (nome do empregador → cargo), a ter em conta na limpeza |
+| `emp_title` | Cargo / empregador (texto livre) | T0 | ✅ | ✅ | ❌ | Declarado no pedido. Texto livre com muitas categorias. Mudança de significado a 23/09/2013 (nome do empregador -> cargo), a ter em conta na limpeza |
 | `emp_length` | Anos de emprego (0–10) | T0 | ✅ | ✅ | ✅ | Declarado no pedido; descreve a estabilidade do mutuário |
 | `home_ownership` | Situação habitacional | T0 | ✅ | ✅ | ✅ | Declarada no pedido |
 | `annual_inc` | Rendimento anual declarado | T0 | ✅ | ✅ | ✅ | Declarado no pedido (*self-reported*) |
