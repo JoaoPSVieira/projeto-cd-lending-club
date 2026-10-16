@@ -54,7 +54,8 @@ rótulos e é justificada no desenho do split.
 ### 1.4 Limitações do alvo
 
 - **"At risk" não é um desfecho final.** É o estado do empréstimo na data de extração
-  (fim de 2018): um empréstimo em atraso pode ainda vir a ser pago ou a entrar em default.
+  (≈ fim de março de 2019): um empréstimo em atraso pode ainda vir a ser pago ou a entrar
+  em default.
   Segue-se a definição do enunciado e a limitação é discutida no relatório.
 - **Viés de seleção por excluir os `Current`.** Nos anos mais recentes, os empréstimos que
   já terminaram são sobretudo os que entraram em incumprimento cedo ou foram pagos

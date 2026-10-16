@@ -12,7 +12,8 @@ cada mês, todos os empréstimos do mesmo mês ficam sempre na mesma partição.
 
 | Data | Valor | Justificação |
 |---|---|---|
-| **Cutoff de observação comum** | 31/12/2018 | O dataset cobre empréstimos até ao 4.º trimestre de 2018 (`accepted_2007_to_2018Q4`, enunciado: "2007–2018"). O `loan_status` é tratado como a fotografia do estado de cada empréstimo nesta data. A data vem da documentação do dataset e **não** é inferida a partir das datas de pagamento; na limpeza apenas se verifica a consistência (ex.: nenhum `issue_d` posterior) |
+| **Data de extração do ficheiro** | ≈ fim de março de 2019 | O `loan_status` e as colunas de pagamento são a fotografia de cada empréstimo nesta data. Determinada na descrição dos dados (`docs/02_preprocessamento/descricao_dados.md`) por várias colunas independentes: `last_pymnt_d` e `last_credit_pull_d` vão até 2019-03 e `next_pymnt_d` até 2019-04. O "2018Q4" do nome do ficheiro refere-se ao último trimestre de **concessão** (`issue_d` até 2018-12), não à data da extração |
+| **Cutoff de observação comum** | 31/12/2018 | Escolha conservadora, anterior à data de extração: um empréstimo só é considerado terminado se o prazo acabar até esta data, e todos esses têm o desfecho registado no ficheiro. Coincide com o fim do último trimestre de concessão do dataset (enunciado: "2007–2018"). **Não** é inferido da última data de pagamento: a data de extração serve apenas para confirmar que tudo o que aconteceu até ao cutoff está observado |
 | **Data de treino simulada** | 01/01/2015 | Simula um modelo treinado no início de 2015 e aplicado aos empréstimos concedidos durante 2015 |
 
 ---
@@ -106,9 +107,9 @@ dentro dos *folds* de treino. O teste final nunca é reequilibrado.
 - **Mudança temporal**: o modelo é treinado com empréstimos de 2007–2011 e avaliado em
   2015, depois de mudanças na política de crédito e no mercado. Esta diferença faz parte
   do que se pretende avaliar.
-- **O rótulo é o estado a 31/12/2018**, e não o estado exato em 01/01/2015. Para empréstimos
-  cujo prazo já tinha terminado, a diferença é pequena (ex.: um atraso no fim do prazo que
-  mais tarde passou a *Charged Off*).
+- **O rótulo é o estado na data de extração** (≈ fim de março de 2019), e não o estado
+  exato em 01/01/2015. Para empréstimos cujo prazo já tinha terminado, a diferença é pequena
+  (ex.: um atraso no fim do prazo que mais tarde passou a *Charged Off*).
 - **A classe "At risk"** fica rara, porque poucos empréstimos continuam em atraso depois do
   fim do prazo.
 

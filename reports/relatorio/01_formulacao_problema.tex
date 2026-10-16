@@ -181,10 +181,15 @@ problema é resolvido no desenho da divisão temporal.
 
 As partições usam cortes de calendário explícitos sobre \texttt{issue\_d}, no início de cada
 mês, de modo que empréstimos do mesmo mês ficam sempre na mesma partição. Define-se um
-\textit{cutoff} de observação comum a 31/12/2018, justificado pela cobertura documentada do
-conjunto de dados (até ao 4.º trimestre de 2018) e não inferido a partir das datas de
-pagamento. Simula-se um modelo treinado a 01/01/2015 e aplicado aos empréstimos concedidos
-em 2015. A Tabela~\ref{tab:split} resume as partições.
+\textit{cutoff} de observação comum a 31/12/2018: um empréstimo só é considerado terminado
+se o prazo acabar até esta data. O ficheiro foi extraído por volta do fim de março de 2019,
+como mostram várias colunas independentes (último pagamento, próximo pagamento previsto e
+última consulta ao \textit{bureau}); o ``2018Q4'' do nome refere-se ao último trimestre de
+concessão. O \textit{cutoff} é, por isso, uma escolha conservadora, anterior à extração,
+que garante que todos os empréstimos terminados até essa data têm o desfecho registado, e
+não é inferido a partir da última data de pagamento. Simula-se um modelo treinado a
+01/01/2015 e aplicado aos empréstimos concedidos em 2015. A Tabela~\ref{tab:split} resume
+as partições.
 
 \begin{table}[!t]
 \caption{Partições temporais por tarefa (\texttt{issue\_d})}
@@ -237,8 +242,8 @@ treino, e as amostras são aleatórias, com semente fixa.
   pedido; \texttt{loan\_amnt} pode refletir reduções feitas pelo departamento de crédito.
   \item A classe \textit{At risk} corresponde ao estado do empréstimo na data de extração e
   não a um desfecho final; com a regra do prazo terminado, torna-se rara.
-  \item O rótulo usado é o estado a 31/12/2018 e não o estado exato na data de treino
-  simulada.
+  \item O rótulo usado é o estado na data de extração (por volta do fim de março de 2019) e
+  não o estado exato na data de treino simulada.
   \item A classificação usa um treino reduzido (2007--2011) e é avaliada num período
   posterior, depois de mudanças na política de crédito e no mercado.
   \item A identificação de mutuários repetidos depende da disponibilidade de

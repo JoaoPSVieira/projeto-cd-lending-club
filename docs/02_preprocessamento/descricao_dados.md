@@ -140,7 +140,12 @@ de 2019. A fotografia (o `loan_status` e as colunas de pagamento) corresponde, p
 **fim do 1.º trimestre de 2019**, e não ao fim de 2018. O "2018Q4" do nome refere-se ao
 último trimestre de **concessão** (`issue_d` vai até 2018-12), não à data da extração.
 
-O impacto nas decisões da Fase 1 é analisado à parte: ver as notas do passo de qualidade.
+**Impacto nas decisões da Fase 1:** nenhuma regra muda. O cutoff de observação comum
+continua a ser 31/12/2018, agora justificado como uma escolha conservadora, anterior à
+extração: todas as regras usam "o prazo terminou até ao cutoff", e como o ficheiro tem
+informação até março de 2019, tudo o que terminou até dezembro de 2018 está observado. O
+texto de `docs/01_formulacao_problema/desenho_split.md` e da secção 1 do relatório foi
+corrigido em conformidade.
 
 ---
 
