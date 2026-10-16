@@ -14,7 +14,10 @@ Decisões de desenho:
 
 2 - Valores com formato inesperado dão erro em vez de passarem a NaN:
     Um NaN silencioso esconderia problemas no ficheiro. Só o valor em falta original
-    continua em falta.
+    continua em falta (exceção: texto só com espaços, que é um campo vazio).
+
+3 - Cada função recebe e devolve uma pd.Series com o mesmo índice:
+    Assim podem ser aplicadas coluna a coluna pelo SchemaParser.
 """
 
 import pandas as pd
@@ -25,6 +28,21 @@ MONTHS = {"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
 
 MONTH_YEAR_PATTERN = r"(?P<month>[A-Z][a-z]{2})-(?P<year>\d{4})"
 
+# Número decimal, com sinal e notação científica opcionais (ex.: "10000.0", "-5e-10")
+NUMBER_PATTERN = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
+
+# Prazo do empréstimo, com os espaços que vêm no ficheiro (ex.: " 36 months")
+TERM_PATTERN = r"\s*(\d+) months\s*"
+
+# Anos de emprego: os 11 valores do ficheiro, por ordem.
+# "< 1 year" -> 0 e "10+ years" -> 10 (o ficheiro não distingue mais de 10 anos)
+EMP_LENGTH_YEARS = {"< 1 year": 0, "1 year": 1, "2 years": 2, "3 years": 3,
+                    "4 years": 4, "5 years": 5, "6 years": 6, "7 years": 7,
+                    "8 years": 8, "9 years": 9, "10+ years": 10}
+
+# Indicadores sim/não (o ficheiro usa "y"/"n" e "Y"/"N")
+FLAG_VALUES = {"Y": True, "N": False, "y": True, "n": False}
+
 
 def parse_month_year(values):
     """
@@ -34,7 +52,7 @@ def parse_month_year(values):
         values (pd.Series): Texto no formato "Mon-AAAA"; valores em falta são permitidos
 
     Returns:
-        pd.Series: Datas (datetime64) com o mesmo índice; NaT onde o valor estava em falta
+        pd.Series: Datas (datetime64[ns]) com o mesmo índice; NaT onde o valor estava em falta
 
     Raises:
         ValueError: Se algum valor preenchido não tiver o formato "Mon-AAAA"
@@ -44,12 +62,103 @@ def parse_month_year(values):
 
     # Preenchido no original, mas não reconhecido pelo padrão ou pela tabela de meses
     month = parts["month"].map(MONTHS)
-    invalid = values.notna() & month.isna()
-    if invalid.any():
-        examples = values[invalid].unique()[:5].tolist()
-        raise ValueError(f"{invalid.sum()} valores fora do formato 'Mon-AAAA', "
-                         f"por exemplo: {examples}")
+    _raise_if_invalid(values, values.notna() & month.isna(), "'Mon-AAAA'")
 
+    # Unidade fixa: sem ela, uma coluna toda vazia ficaria com uma unidade diferente das outras
     return pd.to_datetime(
         pd.DataFrame({"year": parts["year"].astype("float"), "month": month, "day": 1})
-    ).rename(values.name)
+    ).astype("datetime64[ns]").rename(values.name)
+
+
+def parse_number(values):
+    """
+    Converte texto numérico (ex.: "10000.0", "12.99", "1e-10") em float
+
+    Parameters:
+        values (pd.Series): Texto numérico; valores em falta são permitidos
+
+    Returns:
+        pd.Series: float64 com o mesmo índice; NaN onde o valor estava em falta
+
+    Raises:
+        ValueError: Se algum valor preenchido não for um número
+    """
+    # Valores em falta são aceites; o str.fullmatch devolve False neles
+    valid = values.isna() | values.str.fullmatch(NUMBER_PATTERN)
+    _raise_if_invalid(values, ~valid, "numérico")
+    return values.astype("float64")
+
+
+def parse_id(values):
+    """
+    Converte o identificador do empréstimo em inteiro
+
+    Raises:
+        ValueError: Se houver ids em falta ou que não sejam inteiros
+    """
+    if values.isna().any():
+        raise ValueError(f"{values.name}: {values.isna().sum()} identificadores em falta.")
+    valid = values.str.fullmatch(r"\d+").astype(bool)
+    _raise_if_invalid(values, ~valid, "inteiro")
+    return values.astype("int64")
+
+
+def parse_term(values):
+    """
+    Converte o prazo (ex.: " 36 months") no número de meses (36.0)
+
+    Raises:
+        ValueError: Se algum valor preenchido não tiver o formato "<n> months"
+    """
+    months = values.str.extract(TERM_PATTERN, expand=False)
+    _raise_if_invalid(values, values.notna() & months.isna(), "'<n> months'")
+    return months.astype("float64").rename(values.name)
+
+
+def parse_emp_length(values):
+    """
+    Converte os anos de emprego (ex.: "< 1 year", "10+ years") num número de 0 a 10
+
+    Raises:
+        ValueError: Se aparecer um valor que não esteja em EMP_LENGTH_YEARS
+    """
+    years = values.map(EMP_LENGTH_YEARS)
+    _raise_if_invalid(values, values.notna() & years.isna(), "de anos de emprego")
+    return years.astype("float64")
+
+
+def parse_flag(values):
+    """
+    Converte indicadores "Y"/"N" (ou "y"/"n") em booleano
+
+    Returns:
+        pd.Series: dtype "boolean" (aceita valores em falta)
+
+    Raises:
+        ValueError: Se aparecer um valor que não esteja em FLAG_VALUES
+    """
+    flags = values.map(FLAG_VALUES)
+    _raise_if_invalid(values, values.notna() & flags.isna(), "Y/N")
+    return flags.astype("boolean")
+
+
+def clean_text(values):
+    """
+    Tira os espaços no início e no fim; texto só com espaços passa a valor em falta
+
+    Não muda maiúsculas nem o conteúdo: uniformizar categorias (ex.: "RN" e
+    "Registered Nurse") é uma decisão de limpeza, não de parsing.
+
+    Returns:
+        pd.Series: Texto com o mesmo dtype e índice
+    """
+    stripped = values.str.strip()
+    return stripped.mask(stripped == "")
+
+
+def _raise_if_invalid(values, invalid, expected):
+    """Dá erro com exemplos se a máscara invalid tiver algum True"""
+    if invalid.any():
+        examples = values[invalid].unique()[:5].tolist()
+        raise ValueError(f"{values.name}: {invalid.sum()} valores fora do formato "
+                         f"{expected}, por exemplo: {examples}")
