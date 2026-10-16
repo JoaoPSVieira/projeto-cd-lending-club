@@ -28,6 +28,14 @@ Decisões de desenho:
 3 - Códigos disfarçados: em 2007-2008, "nunca aconteceu" foi guardado como 0 em
     mths_since_last_record e mths_since_last_delinq. recode_disguised_missing corrige-o
     com uma regra determinística dentro de cada linha.
+
+Duplicados e mutuários repetidos (DuplicateReport):
+    - Empréstimo duplicado: o mesmo empréstimo em mais do que uma linha. Inflaciona os
+      dados e, se as cópias caírem em partições diferentes, o modelo é avaliado com
+      casos que já viu.
+    - Mutuário repetido: a mesma pessoa com vários empréstimos. Não é um erro, mas as
+      linhas deixam de ser independentes. O member_id está vazio em todo o ficheiro, por
+      isso só é possível uma estimativa com uma chave aproximada.
 """
 
 import pandas as pd
@@ -183,3 +191,101 @@ class MissingnessReport:
 
         found = [cols for cols in groups.values() if len(cols) > 1]
         return sorted(found, key=lambda cols: -missing[cols[0]].sum())
+
+
+# Chave aproximada do mutuário: atributos pessoais que mudam pouco entre dois pedidos.
+# earliest_cr_line é o mês da primeira linha de crédito (fixo para cada pessoa); zip_code e
+# addr_state dão a localização; annual_inc, emp_title e home_ownership o perfil declarado.
+REPEAT_BORROWER_KEY = ["earliest_cr_line", "zip_code", "addr_state", "annual_inc",
+                       "emp_title", "home_ownership"]
+
+
+class DuplicateReport:
+    """
+    Empréstimos duplicados e estimativa de mutuários repetidos
+
+    Attributes:
+        id_column (str): Identificador do empréstimo
+        url_column (str): Endereço do empréstimo (termina em "loan_id=<id>")
+        borrower_id_column (str): Identificador do mutuário (member_id)
+        borrower_key (list[str]): Colunas da chave aproximada do mutuário
+        date_column (str): Data de concessão, para medir o intervalo entre empréstimos
+
+    Methods:
+        checks(df): Tabela com as verificações de duplicados
+        repeat_borrowers(df): Linhas cuja chave aproximada aparece mais do que uma vez
+        repeat_summary(df): Números da estimativa de mutuários repetidos
+    """
+
+    def __init__(self, id_column="id", url_column="url", borrower_id_column="member_id",
+                 borrower_key=None, date_column="issue_d"):
+        self.id_column = id_column
+        self.url_column = url_column
+        self.borrower_id_column = borrower_id_column
+        self.borrower_key = REPEAT_BORROWER_KEY if borrower_key is None else borrower_key
+        self.date_column = date_column
+
+    def checks(self, df):
+        """
+        Verificações de duplicados, uma por linha
+
+        Returns:
+            pd.DataFrame: check, rule e rows (número de linhas que falham a verificação,
+                exceto na última, que conta os identificadores de mutuário preenchidos)
+        """
+        url_id = df[self.url_column].str.extract(r"loan_id=(\d+)$", expand=False)
+        url_mismatch = url_id.isna() | (url_id.astype("float") != df[self.id_column])
+        others = df.drop(columns=[self.id_column, self.url_column])
+
+        rows = [
+            ("id repetido", f"{self.id_column} aparece em mais do que uma linha",
+             df[self.id_column].duplicated(keep=False).sum()),
+            ("url de outro empréstimo", f"o loan_id do {self.url_column} difere do {self.id_column}",
+             url_mismatch.sum()),
+            ("linha repetida", f"todas as colunas iguais, exceto {self.id_column} e {self.url_column}",
+             others.duplicated(keep=False).sum()),
+            ("identificador do mutuário", f"{self.borrower_id_column} preenchido",
+             df[self.borrower_id_column].notna().sum()),
+        ]
+        return pd.DataFrame(rows, columns=["check", "rule", "rows"]).set_index("check")
+
+    def repeat_borrowers(self, df):
+        """
+        Empréstimos cuja chave aproximada do mutuário aparece mais do que uma vez
+
+        Só entram linhas com todas as colunas da chave preenchidas.
+
+        Returns:
+            pd.DataFrame: id, data, colunas da chave, group (número do grupo) e group_size,
+                ordenado por grupo e data
+        """
+        keyed = df.dropna(subset=self.borrower_key)
+        size = keyed.groupby(self.borrower_key)[self.id_column].transform("size")
+        repeated = keyed.loc[size > 1, [self.id_column, self.date_column, *self.borrower_key]]
+        return (repeated
+                .assign(group=repeated.groupby(self.borrower_key).ngroup(),
+                        group_size=size[size > 1])
+                .sort_values(["group", self.date_column]))
+
+    def repeat_summary(self, df):
+        """
+        Números da estimativa de mutuários repetidos
+
+        Returns:
+            pd.Series: empréstimos com chave completa, empréstimos em grupos repetidos (e %),
+                grupos, intervalo mediano em meses entre o 1.º e o último empréstimo do grupo,
+                e grupos com todos os empréstimos no mesmo mês
+        """
+        keyed = df[self.borrower_key].notna().all(axis=1).sum()
+        repeated = self.repeat_borrowers(df)
+        dates = repeated.groupby("group")[self.date_column]
+        gap_months = (dates.max() - dates.min()).dt.days / 30.44
+
+        return pd.Series({
+            "empréstimos com chave completa": int(keyed),
+            "empréstimos em grupos repetidos": len(repeated),
+            "% dos empréstimos com chave": round(100 * len(repeated) / keyed, 2),
+            "grupos (possíveis mutuários)": repeated["group"].nunique(),
+            "intervalo mediano no grupo (meses)": round(gap_months.median(), 1),
+            "grupos com todos os empréstimos no mesmo mês": int((gap_months == 0).sum()),
+        }, dtype="object")  # object: as contagens não passam a decimais
