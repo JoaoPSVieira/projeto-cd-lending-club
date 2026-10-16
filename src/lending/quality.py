@@ -36,9 +36,19 @@ Duplicados e mutuários repetidos (DuplicateReport):
     - Mutuário repetido: a mesma pessoa com vários empréstimos. Não é um erro, mas as
       linhas deixam de ser independentes. O member_id está vazio em todo o ficheiro, por
       isso só é possível uma estimativa com uma chave aproximada.
+
+Valores suspeitos e consistência entre colunas (QualityChecks):
+    Regras que têm de valer em todas as linhas (ex.: funded_amnt <= loan_amnt) e valores
+    fora do esperado numa coluna (ex.: revol_util > 100%). Cada regra conta as linhas que a
+    falham; a decisão sobre cada uma está em docs/02_preprocessamento/valores_suspeitos.md.
+    O teto 9 999 999 dos limites de crédito é um código, não um valor real:
+    recode_cap_codes passa-o a valor em falta.
 """
 
 import pandas as pd
+
+from lending import config
+from lending.cleaning import find_modified_terms
 
 # Significado do valor em falta (as colunas não indicadas são "não registado")
 _MISSING_MEANING = {
@@ -75,6 +85,32 @@ DISGUISED_NEVER_PAIRS = [
     ("mths_since_last_record", "pub_rec"),
     ("mths_since_last_delinq", "delinq_2yrs"),
 ]
+
+
+# Valor máximo do campo (7 noves) usado como teto: não é um limite de crédito real
+CAP_CODES = {"tot_hi_cred_lim": 9_999_999, "total_rev_hi_lim": 9_999_999}
+
+
+def recode_cap_codes(df, codes=None):
+    """
+    Passa a valor em falta os valores que são o teto do campo e não um valor real
+
+    Parameters:
+        df (pd.DataFrame): Dados já convertidos
+        codes (dict[str, float] | None): Coluna -> código. Por omissão, CAP_CODES
+
+    Returns:
+        tuple[pd.DataFrame, pd.Series]: Cópia corrigida e número de valores corrigidos
+            em cada coluna
+    """
+    codes = CAP_CODES if codes is None else codes
+    fixed = df.copy()
+    counts = {}
+    for col, code in codes.items():
+        capped = df[col] == code
+        fixed.loc[capped, col] = float("nan")
+        counts[col] = int(capped.sum())
+    return fixed, pd.Series(counts, name="corrigidos")
 
 
 def recode_disguised_missing(df, pairs=None):
@@ -289,3 +325,116 @@ class DuplicateReport:
             "intervalo mediano no grupo (meses)": round(gap_months.median(), 1),
             "grupos com todos os empréstimos no mesmo mês": int((gap_months == 0).sum()),
         }, dtype="object")  # object: as contagens não passam a decimais
+
+
+# Estados de empréstimos que ainda não terminaram
+ACTIVE_STATUSES = ["Current", "In Grace Period", "Late (16-30 days)", "Late (31-120 days)"]
+
+
+class QualityChecks:
+    """
+    Regras de intervalo e de consistência, com o número de linhas que falham cada uma
+
+    Cada regra devolve uma máscara booleana (True = a linha falha). Comparações com
+    valores em falta dão False, por isso só contam linhas em que a regra pode ser avaliada.
+
+    Attributes:
+        extraction_month (pd.Period): Mês da extração do ficheiro
+        checks (list[tuple]): (categoria, nome, regra em texto, função df -> máscara)
+
+    Methods:
+        failures(df): Máscara de cada regra (uma coluna por regra)
+        summary(df): Tabela com o número e a % de linhas que falham cada regra
+    """
+
+    def __init__(self, extraction_month=None):
+        """
+        Parameters:
+            extraction_month (str | None): "AAAA-MM". Por omissão, config.EXTRACTION_MONTH
+        """
+        month = config.EXTRACTION_MONTH if extraction_month is None else extraction_month
+        self.extraction_month = pd.Period(month, freq="M")
+
+        self.checks = [
+            # --- Valores suspeitos numa coluna ---
+            ("intervalo", "revol_util acima de 100%", "revol_util > 100",
+             lambda d: d["revol_util"] > 100),
+            ("intervalo", "bc_util acima de 100%", "bc_util > 100",
+             lambda d: d["bc_util"] > 100),
+            ("intervalo", "limite de crédito no teto", "tot_hi_cred_lim ou total_rev_hi_lim = 9 999 999",
+             lambda d: (d["tot_hi_cred_lim"] == 9_999_999) | (d["total_rev_hi_lim"] == 9_999_999)),
+            ("intervalo", "rendimento acima de 1 milhão", "annual_inc > 1 000 000",
+             lambda d: d["annual_inc"] > 1_000_000),
+            ("intervalo", "rendimento abaixo de 4 000", "annual_inc < 4 000",
+             lambda d: d["annual_inc"] < 4_000),
+            ("intervalo", "DTI igual a 0", "dti = 0",
+             lambda d: d["dti"] == 0),
+            ("intervalo", "FICO fora do intervalo de 4 pontos",
+             "fico_range_high - fico_range_low != 4, exceto o escalão 845-850",
+             lambda d: ((d["fico_range_high"] - d["fico_range_low"]) != 4)
+                       & ~((d["fico_range_low"] == 845) & (d["fico_range_high"] == 850))),
+            # --- Consistência entre colunas ---
+            ("consistência", "financiado acima do pedido", "funded_amnt > loan_amnt",
+             lambda d: d["funded_amnt"] > d["loan_amnt"]),
+            ("consistência", "investidores acima do financiado", "funded_amnt_inv > funded_amnt",
+             lambda d: d["funded_amnt_inv"] > d["funded_amnt"]),
+            ("consistência", "grau diferente do subgrau", "grade != 1.ª letra de sub_grade",
+             lambda d: d["grade"] != d["sub_grade"].str[0]),
+            ("consistência", "taxa de 6% num grau B a G", "int_rate = 6,00 e grade em B..G",
+             lambda d: find_modified_terms(d)["rate_below_grade"]),
+            ("consistência", "prestação diferente da fórmula",
+             "|installment - fórmula de amortização| > 1 USD",
+             lambda d: find_modified_terms(d)["installment_mismatch"]),
+            ("consistência", "crédito mais antigo depois da concessão", "earliest_cr_line >= issue_d",
+             lambda d: d["earliest_cr_line"] >= d["issue_d"]),
+            ("consistência", "contas abertas acima do total", "open_acc > total_acc",
+             lambda d: d["open_acc"] > d["total_acc"]),
+            ("consistência", "registos públicos incoerentes",
+             "pub_rec_bankruptcies + tax_liens > pub_rec",
+             lambda d: (d["pub_rec_bankruptcies"].fillna(0) + d["tax_liens"].fillna(0)) > d["pub_rec"]),
+            ("consistência", "atraso recente sem data recente",
+             "delinq_2yrs > 0 e mths_since_last_delinq > 24",
+             lambda d: (d["delinq_2yrs"] > 0) & (d["mths_since_last_delinq"] > 24)),
+            ("consistência", "data recente sem atraso recente",
+             "delinq_2yrs = 0 e mths_since_last_delinq < 24",
+             lambda d: (d["delinq_2yrs"] == 0) & (d["mths_since_last_delinq"] < 24)),
+            ("consistência", "saldo sem hipoteca acima do saldo total",
+             "total_bal_ex_mort > tot_cur_bal",
+             lambda d: d["total_bal_ex_mort"] > d["tot_cur_bal"]),
+            ("consistência", "saldo rotativo sem utilização", "revol_bal > 0 e revol_util = 0",
+             lambda d: (d["revol_bal"] > 0) & (d["revol_util"] == 0)),
+            ("consistência", "utilização sem saldo rotativo", "revol_bal = 0 e revol_util > 0",
+             lambda d: (d["revol_bal"] == 0) & (d["revol_util"] > 0)),
+            ("consistência", "pagamento antes da concessão", "last_pymnt_d < issue_d",
+             lambda d: d["last_pymnt_d"] < d["issue_d"]),
+            ("consistência", "ativo depois do fim do prazo",
+             f"loan_status ativo e issue_d + term < {self.extraction_month}",
+             self._active_after_term),
+        ]
+
+    def failures(self, df):
+        """
+        Returns:
+            pd.DataFrame: Uma coluna booleana por regra (nome da regra), com o índice de df
+        """
+        return pd.DataFrame({name: rule(df) for _, name, _, rule in self.checks},
+                            index=df.index)
+
+    def summary(self, df):
+        """
+        Returns:
+            pd.DataFrame: category, rule, rows (linhas que falham) e pct, uma linha por regra
+        """
+        counts = self.failures(df).sum()
+        table = pd.DataFrame(
+            [(cat, name, rule) for cat, name, rule, _ in self.checks],
+            columns=["category", "check", "rule"],
+        ).set_index("check")
+        table["rows"] = counts
+        table["pct"] = (100 * counts / len(df)).round(3)
+        return table
+
+    def _active_after_term(self, df):
+        """Empréstimo ainda ativo cujo prazo terminou antes da extração"""
+        end = df["issue_d"].dt.to_period("M") + df["term"].astype(int)
+        return df["loan_status"].isin(ACTIVE_STATUSES) & (end < self.extraction_month)

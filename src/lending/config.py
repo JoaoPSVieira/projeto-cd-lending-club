@@ -51,6 +51,10 @@ PARTITIONS = {
     "reserved": ("2016-01", "2018-12"),     # não usado na Parte 1
 }
 
+# Mês em que o ficheiro foi extraído: último pagamento registado (last_pymnt_d)
+# (docs/02_preprocessamento/descricao_dados.md, secção 4)
+EXTRACTION_MONTH = "2019-03"
+
 # ------------
 # Constantes -
 # ------------
