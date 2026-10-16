@@ -40,6 +40,11 @@ ACCEPTED_TEST_RAW_PKL = PROCESSED_DIR / "accepted_test_raw.pkl"
 # Registo das linhas removidas/separadas até chegar ao conjunto de desenvolvimento
 ACCEPTED_DEV_LOG_PKL = PROCESSED_DIR / "accepted_dev_exclusions.pkl"
 
+# Desenvolvimento limpo (tipos convertidos, correções e exclusões da limpeza) e os
+# registos de exclusões de cada tarefa
+ACCEPTED_DEV_CLEAN_PKL = PROCESSED_DIR / "accepted_dev_clean.pkl"
+COHORT_LOGS_PKL = PROCESSED_DIR / "accepted_dev_cohort_logs.pkl"
+
 # -----------------------------------------------------------------------
 # - Partições temporais (docs/01_formulacao_problema/desenho_split.md) -
 # -----------------------------------------------------------------------
@@ -49,6 +54,15 @@ PARTITIONS = {
     "development": ("2007-06", "2014-12"),  # treino, validação, EDA, testes de hipóteses
     "test": ("2015-01", "2015-12"),         # teste final: usado uma única vez, no fim
     "reserved": ("2016-01", "2018-12"),     # não usado na Parte 1
+}
+
+# Partições da classificação (desenho_split.md, secção 4): só entram no treino os
+# empréstimos de 36 meses cujo prazo terminou antes da data de treino simulada (2015-01).
+# Os de 2012-2014 ainda não tinham terminado: ficam num embargo, fora da classificação.
+CLASSIFICATION_PARTITIONS = {
+    "train": ("2007-06", "2011-12"),
+    "embargo": ("2012-01", "2014-12"),
+    "test": ("2015-01", "2015-12"),
 }
 
 # Mês em que o ficheiro foi extraído: último pagamento registado (last_pymnt_d)

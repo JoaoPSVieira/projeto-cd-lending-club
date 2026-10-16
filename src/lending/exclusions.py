@@ -14,9 +14,16 @@ Decisões de desenho:
 2 - O registo confirma a continuidade:
     As linhas antes de um passo têm de ser as linhas depois do passo anterior. Se não
     forem, houve uma remoção que não foi registada e o código dá erro.
+
+3 - Um registo por tarefa:
+    A limpeza é comum a todas as tarefas; depois cada tarefa tem a sua coorte. branch()
+    copia o registo comum para cada tarefa continuar a partir dele.
 """
 
+import copy
 from dataclasses import asdict, dataclass
+from datetime import date
+from pathlib import Path
 
 import pandas as pd
 
@@ -118,6 +125,20 @@ class ExclusionLog:
         self.steps.append(entry)
         return entry
 
+    def branch(self, dataset):
+        """
+        Cópia independente do registo, com outro nome, para uma tarefa continuar a partir dele
+
+        Parameters:
+            dataset (str): Nome do novo registo (ex.: "classificação (treino)")
+
+        Returns:
+            ExclusionLog: Os mesmos passos; os passos acrescentados depois não afetam o original
+        """
+        branched = copy.deepcopy(self)
+        branched.dataset = dataset
+        return branched
+
     @property
     def rows_after(self):
         """Linhas que ficam depois do último passo (None se o registo estiver vazio)."""
@@ -138,3 +159,47 @@ class ExclusionLog:
 
     def __repr__(self):
         return f"ExclusionLog({self.dataset!r}, {len(self)} passos, {self.rows_after} linhas)"
+
+
+def write_exclusions_markdown(logs, path, title="Tabela de exclusões"):
+    """
+    Escreve os registos de exclusões num ficheiro Markdown, uma tabela por registo
+
+    Parameters:
+        logs (list[ExclusionLog]): Registos a incluir, pela ordem desejada
+        path (str | Path): Ficheiro de destino
+        title (str): Título do documento
+
+    Returns:
+        Path: Caminho do ficheiro escrito
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    lines = [
+        f"# {title}",
+        "",
+        "_Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` — não editar à mão._",
+        "",
+        f"- Gerado em: {date.today().isoformat()}",
+        "- Tipo \"remoção\": as linhas deixam de existir. Tipo \"partição\": as linhas são "
+        "válidas mas ficam à parte (ex.: teste final, embargo).",
+        "- Decisões e justificações: `docs/02_preprocessamento/` e "
+        "`docs/01_formulacao_problema/`.",
+    ]
+    for log in logs:
+        lines += [
+            "",
+            f"## {log.dataset}",
+            "",
+            "| N.º | Passo | Tipo | Regra | Justificação | Antes | Removidas | Depois |",
+            "|---:|---|---|---|---|---:|---:|---:|",
+        ]
+        for n, s in enumerate(log.steps, start=1):
+            rule = s.rule.replace("|", "\\|")
+            lines.append(f"| {n} | {s.step} | {s.kind} | {rule} | {s.reason} | "
+                         f"{s.rows_before:,} | {s.rows_removed:,} | {s.rows_after:,} |")
+        lines += ["", f"**Linhas finais: {log.rows_after:,}**"]
+
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
