@@ -33,6 +33,24 @@ REJECTED_CSV = RAW_DIR / "rejected_2007_to_2018Q4.csv.gz"
 ACCEPTED_RAW_PKL = PROCESSED_DIR / "accepted_raw.pkl"
 REJECTED_RAW_PKL = PROCESSED_DIR / "rejected_raw.pkl"
 
+# Partições do accepted, ainda em texto (só linhas separadas, nenhum valor alterado)
+ACCEPTED_DEV_RAW_PKL = PROCESSED_DIR / "accepted_dev_raw.pkl"
+ACCEPTED_TEST_RAW_PKL = PROCESSED_DIR / "accepted_test_raw.pkl"
+
+# Registo das linhas removidas/separadas até chegar ao conjunto de desenvolvimento
+ACCEPTED_DEV_LOG_PKL = PROCESSED_DIR / "accepted_dev_exclusions.pkl"
+
+# -----------------------------------------------------------------------
+# - Partições temporais (docs/01_formulacao_problema/desenho_split.md) -
+# -----------------------------------------------------------------------
+# Meses "AAAA-MM", com início e fim incluídos. Os cortes são feitos ao mês,
+# por isso os empréstimos do mesmo mês ficam sempre na mesma partição.
+PARTITIONS = {
+    "development": ("2007-06", "2014-12"),  # treino, validação, EDA, testes de hipóteses
+    "test": ("2015-01", "2015-12"),         # teste final: usado uma única vez, no fim
+    "reserved": ("2016-01", "2018-12"),     # não usado na Parte 1
+}
+
 # ------------
 # Constantes -
 # ------------
