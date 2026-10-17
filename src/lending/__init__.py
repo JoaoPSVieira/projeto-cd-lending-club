@@ -1,5 +1,5 @@
 """
-lending — codebase do projeto de Ciência de Dados (LendingClub, 2007–2018).
+lending - codebase do projeto de Ciência de Dados (LendingClub, 2007–2018).
 
 Os notebooks importam daqui as classes; a lógica não fica escrita nos notebooks.
 

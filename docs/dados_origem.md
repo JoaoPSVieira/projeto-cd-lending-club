@@ -1,6 +1,6 @@
 # Dados de origem
 
-_Gerado automaticamente por `notebooks/00_conversao_dados.ipynb` — não editar à mão._
+_Gerado automaticamente por `notebooks/00_conversao_dados.ipynb` - não editar à mão._
 
 - Fonte: Kaggle, *Lending Club Loan Data* (wordsforthewise/lending-club)
 - Data do download: 2026-10-14

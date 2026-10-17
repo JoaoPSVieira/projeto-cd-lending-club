@@ -7,16 +7,16 @@ Porquê converter:
     ou seja, passa a demorar segundos para fazer o mesmo.
 
 Decisões de desenho:
-1 — Todas as colunas são lidas como string:
+1 - Todas as colunas são lidas como string:
     Esta etapa muda só o formato do ficheiro de CSV para pickle, não interpreta valores
     A conversão de tipos é limpeza e fica para a Phase 2
 
-2 — Só campos vazios contam como "valor em falta":
+2 - Só campos vazios contam como "valor em falta":
     Por omissão, o pandas transforma em NaN textos como "NA", "n/a", "null" ou "None"
     Isso é uma decisão de limpeza, por isso aqui só o campo vazio passa a NaN e o resto
     fica como está no ficheiro original
 
-3 — Texto guardado em Arrow (pyarrow):
+3 - Texto guardado em Arrow (pyarrow):
     O pandas pode guardar texto como objetos Python (que é muito mais pesado)
     ou em Arrow, que é mais compacto.
 """
@@ -102,7 +102,7 @@ class CsvToPickleConverter:
             Path: Caminho do pickle
         """
         if self.pickle_path.exists() and not overwrite:
-            print(f"{self.pickle_path.name} já existe — conversão saltada. "
+            print(f"{self.pickle_path.name} já existe - conversão saltada. "
                   "Para refazer: convert(overwrite=True).")
             return self.pickle_path
 
@@ -280,7 +280,7 @@ class DatasetSummary:
         lines = [
             "# Dados de origem",
             "",
-            "_Gerado automaticamente por `notebooks/00_conversao_dados.ipynb` — não editar à mão._",
+            "_Gerado automaticamente por `notebooks/00_conversao_dados.ipynb` - não editar à mão._",
             "",
             "- Fonte: Kaggle, *Lending Club Loan Data* (wordsforthewise/lending-club)",
             f"- Data do download: {download_date or 'por preencher'}",

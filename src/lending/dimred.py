@@ -1,5 +1,5 @@
 """
-Redução de dimensionalidade para a EDA — PCA (linear) e UMAP (não linear).
+Redução de dimensionalidade para a EDA - PCA (linear) e UMAP (não linear).
 
 Requisito do enunciado (Fase 2, EDA, ponto 2): usar pelo menos um método linear e um
 não linear. Ligação ao T-02 (slides 71–92):
