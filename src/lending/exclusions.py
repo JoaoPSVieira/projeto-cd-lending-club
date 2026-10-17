@@ -161,7 +161,8 @@ class ExclusionLog:
         return f"ExclusionLog({self.dataset!r}, {len(self)} passos, {self.rows_after} linhas)"
 
 
-def write_exclusions_markdown(logs, path, title="Tabela de exclusões"):
+def write_exclusions_markdown(logs, path, title="Tabela de exclusões",
+                              notebook="01_preprocessamento.ipynb"):
     """
     Escreve os registos de exclusões num ficheiro Markdown, uma tabela por registo
 
@@ -169,6 +170,7 @@ def write_exclusions_markdown(logs, path, title="Tabela de exclusões"):
         logs (list[ExclusionLog]): Registos a incluir, pela ordem desejada
         path (str | Path): Ficheiro de destino
         title (str): Título do documento
+        notebook (str): Notebook que gera o ficheiro (indicado no topo)
 
     Returns:
         Path: Caminho do ficheiro escrito
@@ -179,7 +181,7 @@ def write_exclusions_markdown(logs, path, title="Tabela de exclusões"):
     lines = [
         f"# {title}",
         "",
-        "_Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` — não editar à mão._",
+        f"_Gerado automaticamente por `notebooks/{notebook}` — não editar à mão._",
         "",
         f"- Gerado em: {date.today().isoformat()}",
         "- Tipo \"remoção\": as linhas deixam de existir. Tipo \"partição\": as linhas são "
