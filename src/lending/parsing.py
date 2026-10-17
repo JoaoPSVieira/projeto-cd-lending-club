@@ -43,6 +43,12 @@ EMP_LENGTH_YEARS = {"< 1 year": 0, "1 year": 1, "2 years": 2, "3 years": 3,
 # Indicadores sim/não (o ficheiro usa "y"/"n" e "Y"/"N")
 FLAG_VALUES = {"Y": True, "N": False, "y": True, "n": False}
 
+# Data completa do ficheiro rejected (ex.: "2007-05-26")
+ISO_DATE_PATTERN = r"\d{4}-\d{2}-\d{2}"
+
+# Percentagem em texto, com o símbolo no fim (ex.: "38.64%", "-1%")
+PERCENT_PATTERN = rf"(?P<number>{NUMBER_PATTERN})%"
+
 
 def parse_month_year(values):
     """
@@ -68,6 +74,45 @@ def parse_month_year(values):
     return pd.to_datetime(
         pd.DataFrame({"year": parts["year"].astype("float"), "month": month, "day": 1})
     ).astype("datetime64[ns]").rename(values.name)
+
+
+def parse_iso_date(values):
+    """
+    Converte texto "AAAA-MM-DD" (ex.: "2007-05-26") em data
+
+    Parameters:
+        values (pd.Series): Texto no formato "AAAA-MM-DD"; valores em falta são permitidos
+
+    Returns:
+        pd.Series: Datas (datetime64[ns]) com o mesmo índice; NaT onde o valor estava em falta
+
+    Raises:
+        ValueError: Se algum valor preenchido não tiver o formato ou não for uma data válida
+    """
+    valid = values.isna() | values.str.fullmatch(ISO_DATE_PATTERN)
+    _raise_if_invalid(values, ~valid, "'AAAA-MM-DD'")
+    # Formato fixo: uma data impossível (ex.: 2015-02-30) dá erro em vez de NaT
+    return pd.to_datetime(values, format="%Y-%m-%d").astype("datetime64[ns]")
+
+
+def parse_percent(values):
+    """
+    Converte uma percentagem em texto (ex.: "38.64%") no número, na escala 0-100 (38.64)
+
+    A escala 0-100 é a mesma das percentagens do accepted (int_rate, dti, revol_util).
+
+    Parameters:
+        values (pd.Series): Texto "<número>%"; valores em falta são permitidos
+
+    Returns:
+        pd.Series: float64 com o mesmo índice; NaN onde o valor estava em falta
+
+    Raises:
+        ValueError: Se algum valor preenchido não terminar em "%" depois de um número
+    """
+    number = values.str.extract(PERCENT_PATTERN, expand=False)
+    _raise_if_invalid(values, values.notna() & number.isna(), "'<número>%'")
+    return number.astype("float64").rename(values.name)
 
 
 def parse_number(values):

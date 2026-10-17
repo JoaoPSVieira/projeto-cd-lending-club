@@ -52,7 +52,7 @@ Nove colunas: `Amount Requested`, `Application Date`, `Loan Title`, `Risk_Score`
 "fotografia" muito mais pequena do pedido, porque estes requerentes nunca chegaram a ser
 mutuários. A conversão de tipos, a partição por `Application Date` e as verificações
 indicadas no enunciado (`Risk_Score` = 0 como valor em falta, DTI em texto com "%",
-artefactos como 4042.11%) são feitas num passo próprio.
+artefactos como 4042.11%) são feitas num passo próprio, descrito em `rejeitados.md`.
 
 ---
 

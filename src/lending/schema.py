@@ -18,6 +18,8 @@ Tipos ("kind"):
     term        " 36 months" -> 36.0 (meses)
     emp_length  "< 1 year".."10+ years" -> 0..10 (anos)
     month_year  "Dec-2015" -> 2015-12-01
+    date        "2015-12-24" -> 2015-12-24 (só no rejected)
+    percent     "38.64%" -> 38.64 (só no rejected; no accepted as % já vêm sem símbolo)
     flag        "Y"/"N" -> True/False
     category    poucas categorias fixas (ex.: grade, purpose) -> texto sem espaços nas pontas
     text        texto livre ou identificadores sem uso (ex.: emp_title, url) -> idem
@@ -33,7 +35,8 @@ from pathlib import Path
 import pandas as pd
 
 from lending.parsing import (clean_text, parse_emp_length, parse_flag, parse_id,
-                             parse_month_year, parse_number, parse_term)
+                             parse_iso_date, parse_month_year, parse_number, parse_percent,
+                             parse_term)
 
 _NUMBER = """
     loan_amnt funded_amnt funded_amnt_inv int_rate installment annual_inc dti
@@ -99,6 +102,8 @@ KIND_UNITS = {
     "term": "meses",
     "emp_length": "anos",
     "month_year": "data (mês)",
+    "date": "data (dia)",
+    "percent": "%",
     "flag": "booleano",
     "category": "categoria",
     "text": "texto",
@@ -160,6 +165,8 @@ PARSERS = {
     "term": parse_term,
     "emp_length": parse_emp_length,
     "month_year": parse_month_year,
+    "date": parse_iso_date,
+    "percent": parse_percent,
     "flag": parse_flag,
     "category": clean_text,
     "text": clean_text,
@@ -323,7 +330,8 @@ class SchemaReport:
             row = {"kind": kind, "unit": self.units[col], "dtype": str(df[col].dtype),
                    "min": "", "max": "", "distinct": values.nunique(), "examples": ""}
 
-            if len(values) and kind in ("number", "term", "emp_length", "month_year"):
+            if len(values) and kind in ("number", "term", "emp_length", "month_year", "date",
+                                        "percent"):
                 row["min"], row["max"] = _format_value(values.min()), _format_value(values.max())
             if kind in ("category", "flag"):
                 top = values.value_counts().head(self.N_EXAMPLES).index
@@ -332,7 +340,8 @@ class SchemaReport:
 
         return pd.DataFrame(rows, index=pd.Index(df.columns, name="column"))
 
-    def write_markdown(self, description, path, dataset, n_rows):
+    def write_markdown(self, description, path, dataset, n_rows,
+                       notebook="01_preprocessamento.ipynb"):
         """
         Escreve a tabela do schema num ficheiro Markdown
 
@@ -341,6 +350,7 @@ class SchemaReport:
             path (str | Path): Ficheiro de destino
             dataset (str): Nome do conjunto descrito (ex.: "accepted, desenvolvimento")
             n_rows (int): Número de linhas do conjunto descrito
+            notebook (str): Notebook que gera o ficheiro (indicado no topo)
 
         Returns:
             Path: Caminho do ficheiro escrito
@@ -352,7 +362,7 @@ class SchemaReport:
         lines = [
             f"# Schema: {dataset}",
             "",
-            "_Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` — não editar à mão._",
+            f"_Gerado automaticamente por `notebooks/{notebook}` — não editar à mão._",
             "",
             f"- Conjunto descrito: {dataset}, {n_rows:,} linhas x {len(description)} colunas",
             f"- Gerado em: {date.today().isoformat()}",

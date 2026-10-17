@@ -40,6 +40,10 @@ ACCEPTED_TEST_RAW_PKL = PROCESSED_DIR / "accepted_test_raw.pkl"
 # Registo das linhas removidas/separadas até chegar ao conjunto de desenvolvimento
 ACCEPTED_DEV_LOG_PKL = PROCESSED_DIR / "accepted_dev_exclusions.pkl"
 
+# O mesmo para o rejected: desenvolvimento ainda em texto e o seu registo
+REJECTED_DEV_RAW_PKL = PROCESSED_DIR / "rejected_dev_raw.pkl"
+REJECTED_DEV_LOG_PKL = PROCESSED_DIR / "rejected_dev_exclusions.pkl"
+
 # Registos de exclusões de cada tarefa e do teste final
 COHORT_LOGS_PKL = PROCESSED_DIR / "accepted_dev_cohort_logs.pkl"
 TEST_LOG_PKL = PROCESSED_DIR / "accepted_test_exclusions.pkl"
@@ -86,6 +90,13 @@ REGRESSION_PARTITIONS = {
     "pre_bureau": ("2007-06", "2012-12"),
     "train": ("2013-01", "2014-12"),
     "test": ("2015-01", "2015-12"),
+}
+
+# Partições do rejected, por Application Date: os mesmos cortes do accepted. Os pedidos de
+# 2007-05 são anteriores ao primeiro empréstimo aceite (2007-06) e ficam fora do estudo.
+REJECTED_PARTITIONS = {
+    "before_accepted": ("2007-05", "2007-05"),
+    **PARTITIONS,
 }
 
 # Mês em que o ficheiro foi extraído: último pagamento registado (last_pymnt_d)
