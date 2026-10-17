@@ -21,7 +21,9 @@ Todas as decisões desta secção --- tarefas, momentos de previsão, elegibilid
 variáveis, coortes e divisão dos dados --- foram tomadas \textbf{antes} da análise
 exploratória, com base apenas no enunciado e no dicionário de dados. O objetivo é evitar
 que estas escolhas sejam influenciadas pelos resultados observados e, assim, prevenir a
-fuga de informação (\textit{data leakage}).
+fuga de informação (\textit{data leakage}). Depois de fixado o desenho, foram feitas
+apenas verificações de consistência que não envolvem o período de teste
+(Secção~\ref{sec:split}).
 
 % ---------------------------------------------------------------------
 \subsection{Definição das tarefas}
@@ -37,12 +39,44 @@ conhecida para todos desde a concessão.
 \textbf{Classificação.} Prever, no momento da concessão do empréstimo --- quando as
 condições (taxa, grau de risco e prestação) já estão fixadas, mas nenhum pagamento foi
 observado --- o desfecho do empréstimo em três classes: \textit{Good standing},
-\textit{At risk} e \textit{Default}.
+\textit{At risk} e \textit{Default}. Como se explica na
+Secção~\ref{sec:split}, a classe \textit{At risk} não é observável no treino, pelo que,
+na prática, o modelo distingue \textit{Good standing} de \textit{Default}.
 
 \textbf{Clustering.} Identificar, sem prever qualquer alvo, grupos de mutuários com perfis
 de crédito semelhantes e grupos de estados norte-americanos com comportamento semelhante
 em termos de taxa de aprovação, montantes pedidos e \textit{risk scores}, combinando
 pedidos aceites e rejeitados.
+
+% ---------------------------------------------------------------------
+\subsection{Critérios de sucesso}
+\label{sec:sucesso}
+
+Os critérios de sucesso foram fixados antes de qualquer modelação. Em vez de valores
+absolutos arbitrários, cada modelo é comparado com \textit{baselines} simples, de forma a
+evitar que os resultados sejam justificados \textit{a posteriori}.
+
+\begin{itemize}
+  \item \textbf{Regressão.} Métrica principal: MAE; são também reportados o RMSE e o
+  $R^2$. \textit{Baselines}: (i) prever sempre a mediana de \texttt{int\_rate} do treino;
+  (ii) prever a mediana de \texttt{int\_rate} do treino para cada prazo (\texttt{term}).
+  O modelo tem sucesso se o MAE for inferior ao das duas \textit{baselines} na validação
+  cruzada e no teste.
+  \item \textbf{Classificação.} Métricas principais: F1 \textit{macro} e AUC; são também
+  reportados a matriz de confusão, a precisão, o \textit{recall} e o F1 (\textit{macro} e
+  \textit{micro}) e a \textit{accuracy}. Dado o desequilíbrio das classes, a
+  \textit{accuracy} não é usada como critério: prever sempre \textit{Good standing} já
+  acertaria na grande maioria dos casos. \textit{Baselines}: (i) prever sempre a classe
+  maioritária; (ii) atribuir a cada empréstimo a taxa de \textit{default} do seu grau
+  (\texttt{grade}) no treino, ou seja, usar apenas a avaliação de risco da LendingClub.
+  O modelo tem sucesso se superar as duas \textit{baselines} em F1 \textit{macro} e AUC.
+  Como não detetar um \textit{default} é mais custoso do que um falso alarme, o
+  \textit{recall} da classe \textit{Default} é analisado à parte.
+  \item \textbf{Clustering.} Não existe alvo, logo não há \textit{baseline} supervisionada.
+  Os agrupamentos são considerados úteis se tiverem silhueta positiva, se forem estáveis
+  quando se muda a semente ou a amostra e se forem interpretáveis em termos das
+  variáveis de origem.
+\end{itemize}
 
 % ---------------------------------------------------------------------
 \subsection{Momentos de previsão e informação disponível}
@@ -94,7 +128,7 @@ limitação deste instantâneo histórico.
 
 Cada uma das 151 colunas foi classificada, para cada tarefa, como elegível, condicional ou
 não elegível. A tabela completa encontra-se no repositório
-(\texttt{docs/01\_formulacao\_problema/elegibilidade\_colunas.md}); a
+(\texttt{docs/\allowbreak 01\_formulacao\_problema/\allowbreak elegibilidade\_colunas.md}); a
 Tabela~\ref{tab:elegibilidade} resume-a. Elegibilidade significa apenas que a utilização
 da variável não constitui fuga de informação; a seleção final é feita mais tarde, com base
 nos dados de treino.
@@ -118,6 +152,8 @@ Clustering & 74 & 1 & 76 & -- \\
 \end{table}
 
 As principais decisões foram:
+% \sloppy (só nesta lista): deixa os nomes longos em \texttt passarem para a linha seguinte
+{\sloppy
 \begin{itemize}
   \item \textbf{Desempenho pós-concessão} (38 colunas: pagamentos, recuperações,
   \texttt{hardship\_*}, \texttt{settlement\_*}, \texttt{last\_fico\_range\_*}): excluídas em
@@ -138,7 +174,7 @@ As principais decisões foram:
   \texttt{initial\_list\_status} são permitidos, por serem conhecidos antes da concessão;
   \texttt{funded\_amnt\_inv} e \texttt{disbursement\_method} são excluídos, por o momento
   em que ficam definidos ser incerto.
-\end{itemize}
+\end{itemize}\par}
 
 % ---------------------------------------------------------------------
 \subsection{Coorte e alvo}
@@ -174,16 +210,21 @@ Excluído & Current; sem valor \\
 A exclusão dos \textit{Current} introduz um viés de seguimento desigual
 (\textit{unequal follow-up}): nas coortes recentes, os empréstimos já terminados são
 sobretudo os que entraram em incumprimento cedo ou foram pagos antecipadamente. Este
-problema é resolvido no desenho da divisão temporal.
+problema é tratado no desenho da divisão temporal.
 
 % ---------------------------------------------------------------------
 \subsection{Desenho da divisão temporal}
+\label{sec:split}
 
 As partições usam cortes de calendário explícitos sobre \texttt{issue\_d}, no início de cada
 mês, de modo que empréstimos do mesmo mês ficam sempre na mesma partição. Define-se um
-\textit{cutoff} de observação comum a 31/12/2018, justificado pela cobertura documentada do
-conjunto de dados (até ao 4.º trimestre de 2018) e não inferido a partir das datas de
-pagamento. Simula-se um modelo treinado a 01/01/2015 e aplicado aos empréstimos concedidos
+\textit{cutoff} de observação comum a 31/12/2018. O nome do ficheiro (2018Q4) indica o
+período de \textbf{concessão} dos empréstimos e não a data em que \texttt{loan\_status} foi
+registado; as datas mais recentes presentes no ficheiro (\texttt{last\_pymnt\_d} até
+2019-03 e \texttt{last\_credit\_pull\_d} até 2019-04) indicam que a extração é posterior a
+esta data. O \textit{cutoff} é, por isso, um limite conservador, comum a todas as tarefas;
+as datas máximas foram usadas apenas como verificação de consistência e não para o
+definir. Simula-se um modelo treinado a 01/01/2015 e aplicado aos empréstimos concedidos
 em 2015. A Tabela~\ref{tab:split} resume as partições.
 
 \begin{table}[!t]
@@ -195,13 +236,13 @@ em 2015. A Tabela~\ref{tab:split} resume as partições.
 \hline
 \textbf{Partição} & \textbf{Regressão} & \textbf{Classificação} \\
 \hline
-Treino e validação & 2007-06 a 2014-12 & 2007-06 a 2011-12 \\
+Treino e validação & 2013-01 a 2014-12 & 2007-06 a 2011-12 \\
 \hline
 Embargo & -- & 2012-01 a 2014-12 \\
 \hline
 Teste final & 2015 & 2015 \\
 \hline
-Não usado & 2016--2018 & 2016--2018 \\
+Não usado & 2007--2012; 2016--2018 & 2016--2018 \\
 \hline
 Coorte & Todos os financiados & 36 meses, não \textit{Current}, prazo terminado \\
 \hline
@@ -209,22 +250,52 @@ Coorte & Todos os financiados & 36 meses, não \textit{Current}, prazo terminado
 \end{table}
 
 Na regressão, o alvo é conhecido na concessão, pelo que todos os rótulos de treino eram
-observáveis na data simulada. A validação é feita por validação cruzada temporal com
-janela expansível por ano civil.
+observáveis na data simulada. O treino e a validação usam os empréstimos concedidos entre
+2013-01 e 2014-12. Durante a limpeza verificou-se que 37 colunas do \textit{bureau} ---
+entre elas oito das variáveis sugeridas no enunciado, como \texttt{tot\_cur\_bal},
+\texttt{bc\_util} e \texttt{mo\_sin\_old\_rev\_tl\_op} --- só começaram a ser registadas
+em 2012 e estão completas a partir de 2013, tal como no período de teste. Restringir o
+treino a 2013--2014 permite usá-las sem imputar anos inteiros e aproxima o treino do
+período de teste. Esta decisão baseia-se apenas na disponibilidade das colunas e não nos
+valores do alvo. A validação é feita por validação cruzada temporal com janela expansível
+por trimestre: o primeiro \textit{fold} treina em 2013T1--T2 e valida em 2013T3, e o
+último valida em 2014T4, num total de seis \textit{folds}. O período 2016--2018 não é
+usado, embora não exista aqui o problema da observabilidade, para manter o mesmo período
+de teste nas duas tarefas supervisionadas, tornando as avaliações comparáveis, e por
+orçamento computacional; esta escolha será revista na Parte~2.
 
 Na classificação, um rótulo só é usado se o empréstimo já tiver atingido o fim do prazo
 (\texttt{issue\_d} + \texttt{term}) na data relevante. O treino inclui, assim, os
 empréstimos de 36 meses concedidos até 2011-12, cujo prazo terminou antes da data de treino
 simulada; os concedidos entre 2012 e 2014 ficam num período de embargo, por ainda não terem
-terminado em 01/01/2015; e o teste final usa os concedidos em 2015, que terminam antes do
-\textit{cutoff}. Esta regra garante que os rótulos de treino eram observáveis na data
-simulada e que todos os empréstimos têm um seguimento completo, eliminando o viés referido.
-Como os empréstimos de 60 meses de 2015 só terminariam em 2020, a classificação fica
-definida apenas para empréstimos de 36 meses.
+terminado em 01/01/2015; e o teste final usa os concedidos em 2015, cujo prazo termina
+antes da extração. Esta regra garante que os rótulos de treino eram observáveis na data
+simulada e que os empréstimos usados têm um seguimento completo, praticamente eliminando o
+viés referido. Como os empréstimos de 60 meses de 2015 só terminariam em 2020, a
+classificação fica definida apenas para empréstimos de 36 meses.
+% TODO (célula 4 do notebook 01): acrescentar "Os empréstimos de 60 meses só surgem a
+% partir de AAAA, pelo que nenhum tinha terminado na data de treino simulada."
 
-A análise exploratória, os testes de hipóteses e o clustering usam apenas o período de
-desenvolvimento (2007--2014); as análises que envolvem o desfecho usam apenas o treino da
-classificação. O teste final é usado uma única vez, no fim do trabalho. Todas as
+Uma verificação posterior ao desenho, feita apenas em dados de desenvolvimento, mostrou
+que, depois da limpeza, a coorte de treino tem 31\,522 empréstimos (\textit{Good
+standing}: 27\,646, 87,7\%; \textit{Default}: 3\,876, 12,3\%) e \textbf{nenhum} da classe
+\textit{At risk}. Esta classe (\textit{Late} e \textit{In Grace Period}) só existe em
+empréstimos ainda a decorrer na data de extração. Em todo o desenvolvimento (2007--2014)
+há apenas 610 casos (0,13\%), todos de 60 meses concedidos em 2013--2014 e ainda ativos
+na extração. Relaxar a regra de observabilidade daria, por isso, muito poucos casos para
+aprender a classe e reintroduziria o viés de seguimento desigual. Mantém-se o desenho:
+na prática, o modelo distingue \textit{Good standing} de \textit{Default}. No teste, os
+eventuais empréstimos \textit{At risk} são contados como \textit{Default}: já
+ultrapassaram o fim do prazo e continuam em atraso, e retirá-los do teste seria
+selecionar as observações de avaliação pelo valor do alvo. As 37 colunas do
+\textit{bureau} referidas acima estão vazias em todo o treino da classificação e não são
+usadas nesta tarefa.
+
+A análise exploratória e os testes de hipóteses usam apenas dados de desenvolvimento:
+2013--2014 nas análises da regressão, o treino da classificação (2007--2011) nas que
+envolvem o desfecho, e 2007--2014 nas comparações entre pedidos aceites e rejeitados. O
+clustering usará igualmente apenas dados de desenvolvimento. O teste final é usado uma
+única vez, no fim do trabalho. Todas as
 transformações aprendidas a partir dos dados são ajustadas apenas no treino de cada
 \textit{fold}; eventuais reamostragens são aplicadas apenas dentro dos \textit{folds} de
 treino, e as amostras são aleatórias, com semente fixa.
@@ -236,11 +307,20 @@ treino, e as amostras são aleatórias, com semente fixa.
   \item Os campos do pedido e do \textit{bureau} são assumidos como registados no momento do
   pedido; \texttt{loan\_amnt} pode refletir reduções feitas pelo departamento de crédito.
   \item A classe \textit{At risk} corresponde ao estado do empréstimo na data de extração e
-  não a um desfecho final; com a regra do prazo terminado, torna-se rara.
-  \item O rótulo usado é o estado a 31/12/2018 e não o estado exato na data de treino
-  simulada.
-  \item A classificação usa um treino reduzido (2007--2011) e é avaliada num período
-  posterior, depois de mudanças na política de crédito e no mercado.
-  \item A identificação de mutuários repetidos depende da disponibilidade de
-  \texttt{member\_id}, verificada na limpeza.
+  não a um desfecho final. Com a regra do prazo terminado, fica \textbf{vazia no treino}
+  (0 em 31\,522 empréstimos), pelo que o modelo de classificação não a consegue aprender.
+  Existe aqui um conflito entre a definição do alvo em três classes e a exigência de
+  rótulos observáveis na data de treino; optou-se pelo backtest estrito, e eventuais casos
+  \textit{At risk} no teste são contados como \textit{Default}.
+  \item Oito das variáveis sugeridas no enunciado (entre 37 colunas do \textit{bureau})
+  só existem a partir de 2012: não são usadas na classificação e limitam o treino da
+  regressão a 2013--2014.
+  \item O rótulo usado é o estado na data de extração (posterior a 31/12/2018) e não o
+  estado exato na data de treino simulada; para empréstimos cujo prazo já tinha terminado,
+  a diferença é pequena.
+  \item A classificação usa um treino reduzido (2007--2011) e desequilibrado, e é avaliada
+  num período posterior, depois de mudanças na política de crédito e no mercado.
+  \item O campo \texttt{member\_id} está vazio em todas as 2\,260\,701 linhas, pelo que não
+  é possível identificar mutuários repetidos: o mesmo mutuário pode surgir em partições
+  diferentes.
 \end{itemize}
