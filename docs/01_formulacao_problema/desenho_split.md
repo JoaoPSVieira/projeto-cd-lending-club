@@ -12,7 +12,8 @@ cada mês, todos os empréstimos do mesmo mês ficam sempre na mesma partição.
 
 | Data | Valor | Justificação |
 |---|---|---|
-| **Cutoff de observação comum** | 31/12/2018 | O dataset cobre empréstimos até ao 4.º trimestre de 2018 (`accepted_2007_to_2018Q4`, enunciado: "2007–2018"). O `loan_status` é tratado como a fotografia do estado de cada empréstimo nesta data. A data vem da documentação do dataset e **não** é inferida a partir das datas de pagamento; na limpeza apenas se verifica a consistência (ex: nenhum `issue_d` posterior) |
+| **Data de extração do ficheiro** | ≈ fim de março de 2019 | O `loan_status` e as colunas de pagamento são a fotografia de cada empréstimo nesta data. Determinada na descrição dos dados (`docs/02_preprocessamento/descricao_dados.md`) por várias colunas independentes: `last_pymnt_d` e `last_credit_pull_d` vão até 2019-03 e `next_pymnt_d` até 2019-04. O "2018Q4" do nome do ficheiro refere-se ao último trimestre de **concessão** (`issue_d` até 2018-12), não à data da extração |
+| **Cutoff de observação comum** | 31/12/2018 | Escolha conservadora, anterior à data de extração: um empréstimo só é considerado terminado se o prazo acabar até esta data, e todos esses têm o desfecho registado no ficheiro. Coincide com o fim do último trimestre de concessão do dataset (enunciado: "2007–2018"). **Não** é inferido da última data de pagamento: a data de extração serve apenas para confirmar que tudo o que aconteceu até ao cutoff está observado |
 | **Data de treino simulada** | 01/01/2015 | Simula um modelo treinado no início de 2015 e aplicado aos empréstimos concedidos durante 2015 |
 
 ---
@@ -41,9 +42,16 @@ Os pedidos **rejeitados** seguem os mesmos cortes, usando `Application Date`.
 | Elemento | Decisão |
 |---|---|
 | Coorte | Todos os empréstimos financiados com `int_rate` preenchido (36 e 60 meses, incluindo `Current`) |
-| Treino + validação | `issue_d` de 2007-06 a 2014-12 |
-| Validação | Validação cruzada temporal com **janela expansível** por ano civil: cada *fold* treina com todos os anos anteriores e valida no ano seguinte (ex: treino até 2010 -> valida 2011; …; treino até 2013 -> valida 2014) |
+| Treino + validação | `issue_d` de 2013-01 a 2014-12 (**revisto na limpeza**, ver abaixo) |
+| Validação | Validação cruzada temporal com **janela expansível por trimestre**: cada *fold* treina com todos os trimestres anteriores e valida no trimestre seguinte. O primeiro treina em 2013T1–T2 e valida em 2013T3; o último valida em 2014T4 (6 *folds*) |
 | Teste final | `issue_d` de 2015-01 a 2015-12 |
+
+**Revisão feita na limpeza.** O desenho inicial treinava com todo o desenvolvimento
+(2007-06 a 2014-12). A análise dos valores em falta mostrou que 37 colunas do *bureau*, entre
+elas 8 *inputs* sugeridos pelo enunciado, só são registadas a partir de 2012 e só estão
+completas a partir de 2013. O grupo decidiu treinar a regressão só com 2013–2014
+(`docs/02_preprocessamento/coortes.md`, secção 4.2). A decisão usa apenas a disponibilidade
+das colunas por ano, nunca o alvo nem o teste final, por isso não introduz *leakage*.
 
 **Observabilidade do alvo:** `int_rate` é conhecido no momento da concessão. Na data de
 treino simulada, todos os alvos de treino já eram observáveis, por isso a regra do enunciado
@@ -96,7 +104,7 @@ por ano). Todos os rótulos de treino são conhecidos na data de treino simulada
 podem ser usados para escolher hiperparâmetros; a ordem temporal evita que padrões mais
 recentes sejam usados para prever empréstimos mais antigos.
 
-**Desequilíbrio de classes:** qualquer reamostragem (ex: *oversampling*) é aplicada apenas
+**Desequilíbrio de classes:** qualquer reamostragem (ex.: *oversampling*) é aplicada apenas
 dentro dos *folds* de treino. O teste final nunca é reequilibrado.
 
 ### 4.4 Limitações
@@ -106,11 +114,14 @@ dentro dos *folds* de treino. O teste final nunca é reequilibrado.
 - **Mudança temporal**: o modelo é treinado com empréstimos de 2007–2011 e avaliado em
   2015, depois de mudanças na política de crédito e no mercado. Esta diferença faz parte
   do que se pretende avaliar.
-- **O rótulo é o estado a 31/12/2018**, e não o estado exato em 01/01/2015. Para empréstimos
-  cujo prazo já tinha terminado, a diferença é pequena (ex: um atraso no fim do prazo que
-  mais tarde passou a *Charged Off*).
+- **O rótulo é o estado na data de extração** (≈ fim de março de 2019), e não o estado
+  exato em 01/01/2015. Para empréstimos cujo prazo já tinha terminado, a diferença é pequena
+  (ex.: um atraso no fim do prazo que mais tarde passou a *Charged Off*).
 - **A classe "At risk"** fica rara, porque poucos empréstimos continuam em atraso depois do
-  fim do prazo.
+  fim do prazo. **Revisão feita na limpeza:** no treino tem 0 casos, porque *At risk* só
+  existe em empréstimos ativos. O grupo decidiu fazer uma classificação binária
+  (*Good standing* vs *Default*); os *At risk* que apareçam no teste contam como *Default*
+  (`docs/02_preprocessamento/coortes.md`, secção 4.1).
 
 ---
 
@@ -118,7 +129,8 @@ dentro dos *folds* de treino. O teste final nunca é reequilibrado.
 
 | Análise | Dados |
 |---|---|
-| EDA geral e da regressão | Desenvolvimento (2007-06 a 2014-12) |
+| EDA geral | Desenvolvimento (2007-06 a 2014-12) |
+| EDA da relação com o alvo da regressão | Treino da regressão (2013-01 a 2014-12) |
 | EDA da relação com o alvo da classificação | Treino da classificação (36 meses, 2007-06 a 2011-12) |
 | Clustering de mutuários | Desenvolvimento (aceites) |
 | Clustering de estados | Desenvolvimento (aceites por `issue_d` + rejeitados por `Application Date`) |
@@ -130,7 +142,7 @@ O teste final e o período reservado **nunca** são usados nestas análises.
 
 ## 6. Outras regras
 
-- **Amostragem reprodutível:** quando for preciso trabalhar com amostras (ex: UMAP, testes
+- **Amostragem reprodutível:** quando for preciso trabalhar com amostras (ex.: UMAP, testes
   com amostras grandes), estas são aleatórias, com semente fixa e documentada, e nunca as
   primeiras linhas do ficheiro.
 - **Duplicados:** são detetados pelo `id` do empréstimo na limpeza.

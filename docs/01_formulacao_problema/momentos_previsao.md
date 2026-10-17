@@ -29,7 +29,7 @@ tabela de elegibilidade das colunas.
 | **T3 - Listagem e financiamento** | O empréstimo é listado e financiado por investidores | `initial_list_status`, `funded_amnt`, `funded_amnt_inv` |
 | **T4 - Concessão** | O dinheiro é entregue; o empréstimo começa | `issue_d` (mês de financiamento), `disbursement_method` |
 | **T5 - Pagamentos** | O mutuário paga (ou não) as prestações | `total_pymnt*`, `total_rec_*`, `out_prncp*`, `last_pymnt_*`, `next_pymnt_d`, `recoveries`, `collection_recovery_fee`, `hardship_*`, `settlement_*`, `debt_settlement_flag*` |
-| **T6 - Extração** | Fotografia do estado do empréstimo no fim de 2018 | `loan_status`, `last_credit_pull_d`, `last_fico_range_*` |
+| **T6 - Extração** | Fotografia do estado do empréstimo na data de extração (≈ fim de março de 2019) | `loan_status`, `last_credit_pull_d`, `last_fico_range_*` |
 
 > **Pressuposto:** os campos de crédito (*bureau*) refletem o relatório obtido no pedido
 > (T0). O ficheiro é uma fotografia histórica, por isso não é possível confirmar o momento
