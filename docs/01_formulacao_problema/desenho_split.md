@@ -42,9 +42,16 @@ Os pedidos **rejeitados** seguem os mesmos cortes, usando `Application Date`.
 | Elemento | Decisão |
 |---|---|
 | Coorte | Todos os empréstimos financiados com `int_rate` preenchido (36 e 60 meses, incluindo `Current`) |
-| Treino + validação | `issue_d` de 2007-06 a 2014-12 |
-| Validação | Validação cruzada temporal com **janela expansível** por ano civil: cada *fold* treina com todos os anos anteriores e valida no ano seguinte (ex.: treino até 2010 -> valida 2011; …; treino até 2013 -> valida 2014) |
+| Treino + validação | `issue_d` de 2013-01 a 2014-12 (**revisto na limpeza**, ver abaixo) |
+| Validação | Validação cruzada temporal com **janela expansível**: cada *fold* treina com todo o período anterior e valida no período seguinte. Com dois anos de treino, os cortes têm de ser mais finos do que o ano (ex.: trimestres); o detalhe define-se na seleção de modelos |
 | Teste final | `issue_d` de 2015-01 a 2015-12 |
+
+**Revisão feita na limpeza.** O desenho inicial treinava com todo o desenvolvimento
+(2007-06 a 2014-12). A análise dos valores em falta mostrou que 37 colunas do *bureau*, entre
+elas 8 *inputs* sugeridos pelo enunciado, só são registadas a partir de 2012 e só estão
+completas a partir de 2013. O grupo decidiu treinar a regressão só com 2013–2014
+(`docs/02_preprocessamento/coortes.md`, secção 4.2). A decisão usa apenas a disponibilidade
+das colunas por ano, nunca o alvo nem o teste final, por isso não introduz *leakage*.
 
 **Observabilidade do alvo:** `int_rate` é conhecido no momento da concessão. Na data de
 treino simulada, todos os alvos de treino já eram observáveis, por isso a regra do enunciado
@@ -111,7 +118,10 @@ dentro dos *folds* de treino. O teste final nunca é reequilibrado.
   exato em 01/01/2015. Para empréstimos cujo prazo já tinha terminado, a diferença é pequena
   (ex.: um atraso no fim do prazo que mais tarde passou a *Charged Off*).
 - **A classe "At risk"** fica rara, porque poucos empréstimos continuam em atraso depois do
-  fim do prazo.
+  fim do prazo. **Revisão feita na limpeza:** no treino tem 0 casos, porque *At risk* só
+  existe em empréstimos ativos. O grupo decidiu fazer uma classificação binária
+  (*Good standing* vs *Default*); os *At risk* saem da coorte num passo registado
+  (`docs/02_preprocessamento/coortes.md`, secção 4.1).
 
 ---
 
@@ -119,7 +129,8 @@ dentro dos *folds* de treino. O teste final nunca é reequilibrado.
 
 | Análise | Dados |
 |---|---|
-| EDA geral e da regressão | Desenvolvimento (2007-06 a 2014-12) |
+| EDA geral | Desenvolvimento (2007-06 a 2014-12) |
+| EDA da relação com o alvo da regressão | Treino da regressão (2013-01 a 2014-12) |
 | EDA da relação com o alvo da classificação | Treino da classificação (36 meses, 2007-06 a 2011-12) |
 | Clustering de mutuários | Desenvolvimento (aceites) |
 | Clustering de estados | Desenvolvimento (aceites por `issue_d` + rejeitados por `Application Date`) |

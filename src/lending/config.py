@@ -40,10 +40,23 @@ ACCEPTED_TEST_RAW_PKL = PROCESSED_DIR / "accepted_test_raw.pkl"
 # Registo das linhas removidas/separadas até chegar ao conjunto de desenvolvimento
 ACCEPTED_DEV_LOG_PKL = PROCESSED_DIR / "accepted_dev_exclusions.pkl"
 
-# Desenvolvimento limpo (tipos convertidos, correções e exclusões da limpeza) e os
-# registos de exclusões de cada tarefa
-ACCEPTED_DEV_CLEAN_PKL = PROCESSED_DIR / "accepted_dev_clean.pkl"
+# Registos de exclusões de cada tarefa
 COHORT_LOGS_PKL = PROCESSED_DIR / "accepted_dev_cohort_logs.pkl"
+
+# -------------------------------------------------------------------------
+# - Conjuntos para a análise e a modelação: já limpos e com tipos corretos -
+# -------------------------------------------------------------------------
+# Nomes combinados no grupo. Todos os notebooks seguintes leem daqui.
+REG_DEV_PKL = PROCESSED_DIR / "regressao_dev.pkl"             # regressão: 2013-01 a 2014-12
+CLS_TRAIN_PKL = PROCESSED_DIR / "classificacao_treino.pkl"   # classificação: 36m, 2007-06 a 2011-12
+ACCEPTED_DEV_PKL = PROCESSED_DIR / "aceites_dev.pkl"          # aceites: 2007-06 a 2014-12 (EDA geral, testes de hipóteses)
+REJECTED_DEV_PKL = PROCESSED_DIR / "rejeitados_dev.pkl"       # rejeitados: mesmos cortes, por Application Date
+TEST_PKL = PROCESSED_DIR / "teste_2015.pkl"                   # teste final: só na avaliação final
+
+# Coluna do alvo da classificação e ordem fixa das classes. Usar sempre esta ordem em
+# tabelas e figuras. Classificação binária (decisão do grupo, docs/02_preprocessamento/coortes.md)
+CLASS_COL = "target"
+CLASS_ORDER = ["Good standing", "Default"]
 
 # -----------------------------------------------------------------------
 # - Partições temporais (docs/01_formulacao_problema/desenho_split.md) -
@@ -62,6 +75,15 @@ PARTITIONS = {
 CLASSIFICATION_PARTITIONS = {
     "train": ("2007-06", "2011-12"),
     "embargo": ("2012-01", "2014-12"),
+    "test": ("2015-01", "2015-12"),
+}
+
+# Partições da regressão: o treino começa em 2013, o primeiro ano em que as 37 colunas do
+# bureau registadas só a partir de 2012 estão completas (valores_em_falta.md, secção 4).
+# Antes disso, um indicador de "em falta" nessas colunas seria um indicador do ano.
+REGRESSION_PARTITIONS = {
+    "pre_bureau": ("2007-06", "2012-12"),
+    "train": ("2013-01", "2014-12"),
     "test": ("2015-01", "2015-12"),
 }
 

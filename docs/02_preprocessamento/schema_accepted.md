@@ -3,7 +3,7 @@
 _Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` — não editar à mão._
 
 - Conjunto descrito: accepted, desenvolvimento, 466,345 linhas x 151 colunas
-- Gerado em: 2026-10-16
+- Gerado em: 2026-10-17
 - Tipos e unidades: `src/lending/schema.py`. Significado de cada coluna: `docs/01_formulacao_problema/elegibilidade_colunas.md`.
 - Mín./máx.: valores observados neste conjunto (vazio se a coluna não tiver valores).
 - Exemplos: as categorias mais frequentes.
