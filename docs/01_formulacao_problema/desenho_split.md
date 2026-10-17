@@ -43,7 +43,7 @@ Os pedidos **rejeitados** seguem os mesmos cortes, usando `Application Date`.
 |---|---|
 | Coorte | Todos os empréstimos financiados com `int_rate` preenchido (36 e 60 meses, incluindo `Current`) |
 | Treino + validação | `issue_d` de 2013-01 a 2014-12 (**revisto na limpeza**, ver abaixo) |
-| Validação | Validação cruzada temporal com **janela expansível**: cada *fold* treina com todo o período anterior e valida no período seguinte. Com dois anos de treino, os cortes têm de ser mais finos do que o ano (ex.: trimestres); o detalhe define-se na seleção de modelos |
+| Validação | Validação cruzada temporal com **janela expansível por trimestre**: cada *fold* treina com todos os trimestres anteriores e valida no trimestre seguinte. O primeiro treina em 2013T1–T2 e valida em 2013T3; o último valida em 2014T4 (6 *folds*) |
 | Teste final | `issue_d` de 2015-01 a 2015-12 |
 
 **Revisão feita na limpeza.** O desenho inicial treinava com todo o desenvolvimento
@@ -120,7 +120,7 @@ dentro dos *folds* de treino. O teste final nunca é reequilibrado.
 - **A classe "At risk"** fica rara, porque poucos empréstimos continuam em atraso depois do
   fim do prazo. **Revisão feita na limpeza:** no treino tem 0 casos, porque *At risk* só
   existe em empréstimos ativos. O grupo decidiu fazer uma classificação binária
-  (*Good standing* vs *Default*); os *At risk* saem da coorte num passo registado
+  (*Good standing* vs *Default*); os *At risk* que apareçam no teste contam como *Default*
   (`docs/02_preprocessamento/coortes.md`, secção 4.1).
 
 ---

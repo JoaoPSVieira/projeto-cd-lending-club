@@ -10,7 +10,7 @@ Coortes:
     Regressão       todos os empréstimos com int_rate (36 e 60 meses, incluindo Current),
                     treino 2013-01 a 2014-12 (antes de 2013 faltam 37 colunas do bureau)
     Classificação   36 meses, prazo terminado (treino 2007-06 a 2011-12; 2012-2014 é
-                    embargo), desfecho conhecido e final (sem Current nem At risk)
+                    embargo), desfecho conhecido (sem Current)
     Clustering      todos os empréstimos do conjunto (mutuários); os estados juntam
                     também os pedidos rejeitados
 
@@ -20,8 +20,9 @@ Alvo da classificação:
         At risk         In Grace Period, Late (16-30 days), Late (31-120 days)
         Default         Charged Off, Default
     A classificação é binária (Good standing vs Default): At risk só existe em empréstimos
-    ainda ativos e tem 0 casos no treino (regra de observabilidade). Os At risk saem da
-    coorte num passo registado, como os Current.
+    ainda ativos e tem 0 casos no treino (regra de observabilidade). Os At risk que
+    apareçam no teste contam como Default (BINARY_CLASSES): já passaram o fim do prazo e
+    continuam em atraso, e retirá-los seria escolher as linhas de avaliação pelo alvo.
     Os "Does not meet the credit policy" entram pelo desfecho (Fully Paid / Charged Off);
     a indicação "does not meet" nunca é usada como preditor.
 """
@@ -31,8 +32,7 @@ import pandas as pd
 from lending import config
 from lending.partition import TemporalPartitioner
 
-# Mapeamento do enunciado (3 classes). Fica completo para que cada estado tenha uma classe
-# conhecida; a classe At risk é depois retirada da coorte.
+# Mapeamento do enunciado (3 classes)
 TARGET_CLASSES = {
     "Fully Paid": "Good standing",
     "Does not meet the credit policy. Status:Fully Paid": "Good standing",
@@ -47,8 +47,11 @@ TARGET_CLASSES = {
 # Desfecho ainda desconhecido: fora da classificação (enunciado)
 UNKNOWN_OUTCOME = ["Current"]
 
-# Estados intermédios (empréstimo ativo e em atraso): fora da classificação binária
+# Estados intermédios (empréstimo ativo e em atraso)
 AT_RISK_STATUSES = [status for status, cls in TARGET_CLASSES.items() if cls == "At risk"]
+
+# Das 3 classes do enunciado para as 2 da classificação (decisão do grupo, coortes.md)
+BINARY_CLASSES = {"Good standing": "Good standing", "At risk": "Default", "Default": "Default"}
 
 CLASSIFICATION_TERM = 36
 
@@ -58,8 +61,7 @@ def make_target(loan_status):
     Converte loan_status nas classes da classificação (config.CLASS_ORDER)
 
     Parameters:
-        loan_status (pd.Series): Estado de cada empréstimo (sem Current, At risk nem valores
-            em falta)
+        loan_status (pd.Series): Estado de cada empréstimo (sem Current nem valores em falta)
 
     Returns:
         pd.Series: Categórica ordenada (Good standing < Default), com o nome config.CLASS_COL
@@ -67,7 +69,7 @@ def make_target(loan_status):
     Raises:
         ValueError: Se aparecer um estado sem classe ou com uma classe fora de CLASS_ORDER
     """
-    target = loan_status.map(TARGET_CLASSES)
+    target = loan_status.map(TARGET_CLASSES).map(BINARY_CLASSES)
     invalid = ~target.isin(config.CLASS_ORDER)
     if invalid.any():
         raise ValueError(f"Estados sem classe na classificação: "
@@ -139,7 +141,6 @@ class CohortBuilder:
             1. Prazo de 60 meses (fora do âmbito: não terminam a tempo)
             2. Fora da partição pedida (ex.: no treino, o embargo de 2012-2014)
             3. Desfecho desconhecido (Current ou loan_status em falta)
-            4. Classe At risk (fora da classificação binária)
 
         Parameters:
             df (pd.DataFrame): Conjunto limpo
@@ -169,12 +170,6 @@ class CohortBuilder:
                            step="Desfecho desconhecido", kind="remoção",
                            rule="loan_status = Current ou em falta",
                            reason="O desfecho final ainda não é conhecido (enunciado)")
-
-        cohort = log.apply(cohort, cohort["loan_status"].isin(AT_RISK_STATUSES),
-                           step="Classe At risk", kind="remoção",
-                           rule="loan_status = In Grace Period ou Late",
-                           reason="Classificação binária (decisão do grupo): At risk só existe "
-                                  "em empréstimos ativos e tem 0 casos no treino")
 
         return cohort.assign(**{config.CLASS_COL: make_target(cohort["loan_status"])})
 

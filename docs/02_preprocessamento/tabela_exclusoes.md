@@ -41,7 +41,6 @@ _Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` — não edita
 | 5 | Prazo de 60 meses | remoção | term != 36 | Não terminam a tempo de o desfecho ser observado (classificação só para 36 meses, desenho_split.md) | 466,124 | 128,228 | 337,896 |
 | 6 | Fora do período de train | partição | issue_d fora de 2007-06 a 2011-12 | Embargo: em 01/01/2015 o prazo ainda não tinha terminado, o rótulo não era observável na data de treino simulada | 337,896 | 306,374 | 31,522 |
 | 7 | Desfecho desconhecido | remoção | loan_status = Current ou em falta | O desfecho final ainda não é conhecido (enunciado) | 31,522 | 0 | 31,522 |
-| 8 | Classe At risk | remoção | loan_status = In Grace Period ou Late | Classificação binária (decisão do grupo): At risk só existe em empréstimos ativos e tem 0 casos no treino | 31,522 | 0 | 31,522 |
 
 **Linhas finais: 31,522**
 

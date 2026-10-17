@@ -77,7 +77,7 @@ O teste limpo fica em `data/processed/teste_2015.pkl` (420 888 × 151, mesmos ti
 
 - As **coortes do teste** (regressão e classificação) não são construídas agora. Na
   avaliação final aplica-se o mesmo `CohortBuilder` com `partition="test"`. Na
-  classificação, isso inclui os passos "desfecho desconhecido" e "classe *At risk*", que no
-  teste podem remover empréstimos.
+  classificação, o passo "desfecho desconhecido" (`Current`) pode remover empréstimos, e os
+  *At risk* que existam contam como *Default*.
 - O pipeline de pré-processamento (imputação, *encoding*, padronização) é ajustado no
   treino e só **aplicado** (*transform*) ao teste.

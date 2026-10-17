@@ -39,15 +39,14 @@ notebook).
 | Tarefa | Passos a partir do conjunto limpo | Empréstimos |
 |---|---|---:|
 | Regressão (treino) | Fora de 2013-01 a 2014-12 (−95 846); sem `int_rate` (0) | 370 278 |
-| Classificação (treino) | Prazo de 60 meses (−128 228); fora de 2007-06 a 2011-12, ou seja, embargo 2012–2014 (−306 374); desfecho desconhecido (0); classe *At risk* (0) | 31 522 |
+| Classificação (treino) | Prazo de 60 meses (−128 228); fora de 2007-06 a 2011-12, ou seja, embargo 2012–2014 (−306 374); desfecho desconhecido (0) | 31 522 |
 | Clustering de mutuários | Nenhum filtro adicional | 466 124 |
 
 A regressão fica com 134 767 empréstimos de 2013 e 235 511 de 2014.
 
-Na classificação, os passos "desfecho desconhecido" e "classe *At risk*" removem 0
-empréstimos no treino: todos os `Current` e todos os *At risk* do desenvolvimento são de 60
-meses e já saíram no primeiro passo. Os passos ficam registados porque no teste (2015)
-podem remover empréstimos.
+Na classificação, o passo "desfecho desconhecido" remove 0 empréstimos no treino: todos os
+`Current` e todos os *At risk* do desenvolvimento são de 60 meses e já saíram no primeiro
+passo. O passo fica registado porque no teste (2015) pode remover empréstimos.
 
 O teste final (2015) recebe as mesmas regras, com o mesmo `CohortBuilder`, apenas na
 avaliação final.
@@ -115,9 +114,15 @@ podem ter rótulo observável numa data de treino anterior ao teste.
 
 **Decisão:** opção A. As regras de *leakage* e de validação do enunciado são obrigatórias,
 e mesmo a opção B só daria 0,13% de *At risk*, demasiado pouco para um modelo aprender a
-classe. O mapeamento do enunciado para 3 classes continua no código (`TARGET_CLASSES`), e os
-*At risk* saem da coorte num passo próprio da tabela de exclusões, como os `Current`. É uma
-limitação reconhecida no relatório.
+classe. O mapeamento do enunciado para 3 classes continua no código (`TARGET_CLASSES`), e
+`BINARY_CLASSES` passa-o para 2 classes. É uma limitação reconhecida no relatório.
+
+**Os *At risk* do teste contam como *Default*.** No treino não há nenhum, mas no teste (2015)
+pode haver empréstimos ainda em atraso na data de extração. Não são retirados:
+- já passaram o fim do prazo e continuam por pagar, o que na prática é um incumprimento;
+- retirá-los seria escolher as linhas de avaliação pelo valor do alvo, o que enviesa o
+  teste. O enunciado proíbe mexer no teste em função dos resultados (*"never rebalance the
+  test set"*).
 
 ### 4.2 Regressão: treino só com 2013–2014
 
@@ -141,10 +146,10 @@ indicador do ano de concessão.
 2012-12 ficam fora do treino da regressão, num passo de tipo "partição" da tabela de
 exclusões. Continuam no conjunto limpo e são usados na EDA geral e no clustering.
 
-Consequência para a seleção de modelos: com dois anos, a validação cruzada temporal por ano
-dá só um *fold* (treino 2013, validação 2014). A validação passa a ter de ser feita com
-cortes mais finos (ex.: janela expansível por trimestre), o que se define na seleção de
-modelos.
+Consequência para a validação: com dois anos, a validação cruzada temporal por ano daria
+só um *fold* (treino 2013, validação 2014). Passa a ser por trimestre, com janela
+expansível: o primeiro *fold* treina em 2013T1–T2 e valida em 2013T3, e o último valida em
+2014T4, num total de 6 *folds* (`desenho_split.md`, secção 3).
 
 **Na classificação**, estas 37 colunas estão 100% vazias no treino (2007–2011) e não podem
 ser usadas.
