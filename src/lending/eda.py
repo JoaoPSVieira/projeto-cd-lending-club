@@ -1,19 +1,18 @@
 """
-Análise exploratória (EDA) — Fase 2 do enunciado.
+Exploration Data Analysis
 
-Requisitos do enunciado que este módulo cobre:
+Requisitos do enunciado:
     1. Estatística descritiva e visualizações (histogramas e gráficos de relação)
-       para investigar padrões, outliers e associações.
-    3. EDA feita só com dados de desenvolvimento, separada do teste final.
-    (O ponto 2, PCA e UMAP, está em lending/dimred.py.)
+       para investigar padrões, outliers e associações
+    2. EDA feita só com dados de desenvolvimento, separada do teste final
 
 Princípios:
-    - As classes NÃO conhecem nomes de colunas: recebem-nos por parâmetro (nota do
-      professor sobre valores "hardcoded"). Os nomes ficam no notebook.
-    - As classes NÃO alteram os dados: só calculam tabelas e desenham figuras.
-      Remover outliers ou imputar é limpeza/pré-processamento, não EDA.
-    - Gráficos com muitos pontos usam uma amostra reprodutível (ReproducibleSampler).
-    - Cada figura pode ser gravada em reports/figures/ para entrar no relatório.
+    - As classes NÃO conhecem nomes de colunas: recebem-nos por parâmetro, eliminando
+      valores hardcoded.
+    - As classes NÃO alteram os dados, pois só calculam tabelas e desenham figuras
+      Remover outliers ou inputs é trabalho da limpeza/pré-processamento, não do EDA
+    - Gráficos com muitos pontos usam uma amostra reprodutível (ReproducibleSampler)
+    - Cada figura pode ser gravada em reports/figures/ para entrar no relatório
 """
 
 from pathlib import Path
@@ -36,20 +35,20 @@ class DescriptiveAnalysis:
     Tabelas de estatística descritiva. Não altera os dados.
 
     Attributes:
-        df (pd.DataFrame): Dados de desenvolvimento (já limpos e com tipos corretos).
+        df (pd.DataFrame): Dados limpos e com os tipos corretos
 
     Methods:
-        summary(cols): Estatísticas de colunas numéricas (inclui % em falta e assimetria).
-        missing(cols): % de valores em falta, ordenado.
-        outliers(cols, k): Contagem de valores fora das barreiras de Tukey (IQR).
-        by_category(cat_col, target_col): Tamanho e média do alvo por categoria.
-        correlation(cols, method): Matriz de correlação.
+        summary(cols): Estatísticas de colunas numéricas
+        missing(cols): % de valores em falta, ordenado
+        outliers(cols, k): Contagem de valores fora dos limites (IQR).
+        by_category(cat_col, target_col): Tamanho e média do alvo por categoria
+        correlation(cols, method): Matriz de correlação
     """
 
     def __init__(self, df):
         """
         Parameters:
-            df (pd.DataFrame): Dados de desenvolvimento.
+            df (pd.DataFrame): Dados de desenvolvimento
         """
         self.df = df
 
@@ -58,14 +57,14 @@ class DescriptiveAnalysis:
         Estatística descritiva das colunas numéricas indicadas.
 
         Inclui a assimetria (skew): valores muito acima de 1 indicam cauda longa à
-        direita (ex.: rendimento), o que sugere transformação logarítmica e escalas
-        robustas mais tarde.
+        direita, o que sugere transformação logarítmica e escalas
+        robustas mais tarde
 
         Parameters:
-            cols (list[str]): Colunas numéricas.
+            cols (list[str]): Colunas numéricas
 
         Returns:
-            pd.DataFrame: Uma linha por coluna.
+            pd.DataFrame: Uma linha por coluna
         """
         data = self.df[cols]
         table = data.describe(percentiles=[0.01, 0.25, 0.5, 0.75, 0.99]).T
@@ -75,29 +74,28 @@ class DescriptiveAnalysis:
 
     def missing(self, cols):
         """
-        Percentagem de valores em falta por coluna, da maior para a menor.
+        Percentagem de valores em falta por coluna, da maior para a menor
 
         Parameters:
-            cols (list[str]): Colunas a analisar.
+            cols (list[str]): Colunas a analisar
 
         Returns:
-            pd.Series: % em falta, ordenada.
+            pd.Series: % em falta (ordenada)
         """
         return self.df[cols].isna().mean().mul(100).sort_values(ascending=False).round(2)
 
     def outliers(self, cols, k=1.5):
         """
-        Conta valores fora das barreiras de Tukey: [Q1 - k*IQR, Q3 + k*IQR] (T-02).
+        Conta valores fora dos limites: [Q1 - k*IQR, Q3 + k*IQR]
 
-        É só diagnóstico: nada é removido. Num dataset de crédito, valores extremos
-        (rendimentos muito altos, utilização > 100%) podem ser reais.
+        É só para observar, ou seja, nada é removido
 
         Parameters:
-            cols (list[str]): Colunas numéricas.
-            k (float): Multiplicador do IQR (1,5 é o valor clássico).
+            cols (list[str]): Colunas numéricas
+            k (float): Multiplicador do IQR (1,5 é o valor mais usado)
 
         Returns:
-            pd.DataFrame: Limites, número e % de valores abaixo e acima.
+            pd.DataFrame: Limites, número e % de valores abaixo e acima
         """
         rows = []
         for col in cols:
@@ -119,18 +117,18 @@ class DescriptiveAnalysis:
 
     def by_category(self, cat_col, target_col, min_count=0):
         """
-        Para cada categoria: número de empréstimos, % do total e média do alvo.
+        Para cada categoria: número de empréstimos, % do total e média do alvo
 
-        - Alvo binário (0/1), ex.: is_default -> a média é a taxa de default.
-        - Alvo contínuo, ex.: int_rate -> a média é a taxa de juro média.
+        - Alvo binário (0/1), ex: is_default -> a média é a taxa de default
+        - Alvo contínuo, ex: int_rate -> a média é a taxa de juro média
 
         Parameters:
-            cat_col (str): Coluna categórica.
-            target_col (str): Coluna do alvo.
-            min_count (int): Esconde categorias com menos casos (médias pouco fiáveis).
+            cat_col (str): Coluna categórica
+            target_col (str): Coluna do alvo
+            min_count (int): Esconde categorias com menos casos (médias pouco fiáveis)
 
         Returns:
-            pd.DataFrame: Ordenado pela média do alvo.
+            pd.DataFrame: Ordenado pela média do alvo
         """
         grouped = self.df.groupby(cat_col, observed=True)[target_col]
         table = pd.DataFrame({
@@ -143,15 +141,15 @@ class DescriptiveAnalysis:
 
     def correlation(self, cols, method="spearman"):
         """
-        Matriz de correlação.
+        Matriz de correlação
 
-        Por omissão usa Spearman (por postos): não exige normalidade nem relação linear
-        e é pouco sensível a outliers, o que convém em variáveis muito assimétricas.
-        Pearson mede só relação linear (T-02, filtros de seleção de variáveis).
+        Por omissão usa Spearman: não exige normalidade nem relação linear e é
+        pouco sensível a outliers, o que convém em variáveis muito assimétricas
+        Pearson mede só relação linear
 
         Parameters:
             cols (list[str]): Colunas numéricas.
-            method (str): "spearman" ou "pearson".
+            method (str): "spearman" ou "pearson"
 
         Returns:
             pd.DataFrame: Matriz de correlação.
@@ -203,15 +201,15 @@ class EDAPlotter:
             df (pd.DataFrame): Dados.
             cols (list[str]): Colunas numéricas.
             log_cols (iterable[str]): Colunas mostradas em escala log10(1 + x), úteis para
-                variáveis com cauda longa (ex.: rendimento, saldos).
+                variáveis com cauda longa (ex: rendimento, saldos).
             bins (int): Número de barras.
             ncols (int): Painéis por linha.
-            clip_cols (iterable[str]): Colunas com valores extremos raros (ex.: dti, revol_util)
+            clip_cols (iterable[str]): Colunas com valores extremos raros (ex: dti, revol_util)
                 cuja cauda é escondida SÓ no gráfico, acima de `clip_quantile`, para a forma ser
                 legível. Os dados não mudam; o número de valores escondidos aparece no título.
             clip_quantile (float): Percentil de corte para as `clip_cols` (0,995 = p99,5).
             title (str | None): Título geral.
-            filename (str | None): Nome do ficheiro (ex.: "hist_regressao.png").
+            filename (str | None): Nome do ficheiro (ex: "hist_regressao.png").
 
         Returns:
             matplotlib.figure.Figure
@@ -286,7 +284,7 @@ class EDAPlotter:
 
         Parameters:
             df (pd.DataFrame): Dados.
-            x, y (str): Colunas (ex.: x="fico_range_low", y="int_rate").
+            x, y (str): Colunas (ex: x="fico_range_low", y="int_rate").
             gridsize (int): Resolução dos hexágonos.
             clip_quantile (float | None): Esconde a cauda extrema de x e y só no gráfico.
             filename (str | None): Nome do ficheiro.
@@ -320,14 +318,14 @@ class EDAPlotter:
         """
         Caixas de bigodes (boxplots) de uma variável numérica por categoria.
 
-        Útil na regressão: ex.: int_rate por term, por purpose, por home_ownership.
+        Útil na regressão: ex: int_rate por term, por purpose, por home_ownership.
         Os outliers individuais não são desenhados (seriam milhares de pontos); as caixas
         mostram mediana, quartis e bigodes de 1,5×IQR.
 
         Parameters:
             df (pd.DataFrame): Dados.
-            num_col (str): Variável numérica (ex.: "int_rate").
-            cat_col (str): Variável categórica (ex.: "purpose").
+            num_col (str): Variável numérica (ex: "int_rate").
+            cat_col (str): Variável categórica (ex: "purpose").
             order (list | None): Ordem das categorias. Por omissão, pela mediana.
             min_count (int): Ignora categorias com poucos casos.
             filename (str | None): Nome do ficheiro.
@@ -356,18 +354,18 @@ class EDAPlotter:
 
     def raincloud(self, df, num_col, group_col, order=None, log=False, filename=None):
         """
-        Gráfico "raincloud" (sugestão do professor): meio violino + caixa + pontos.
+        Gráfico "raincloud": meio violino + caixa + pontos.
 
-        Mostra três coisas ao mesmo tempo para cada grupo (ex.: Good vs Default):
+        Mostra três coisas ao mesmo tempo para cada grupo:
         a forma da distribuição (violino), o resumo (caixa) e os dados reais (pontos,
-        de uma amostra reprodutível). Usa no máximo 3 grupos (limite da paleta).
+        de uma amostra reprodutível). Usa no máximo 3 grupos
 
         Parameters:
             df (pd.DataFrame): Dados.
-            num_col (str): Variável numérica (ex.: "dti").
-            group_col (str): Grupo (ex.: a classe do alvo).
+            num_col (str): Variável numérica (ex: "dti").
+            group_col (str): Grupo (ex: a classe do alvo).
             order (list | None): Ordem dos grupos. A cor segue esta ordem (1.º azul, 2.º laranja),
-                por isso usa sempre a mesma ordem em todas as figuras (ex.: CLASS_ORDER).
+                por isso usa sempre a mesma ordem em todas as figuras (ex: CLASS_ORDER).
             log (bool): Mostra log10(1 + x) (para variáveis com cauda longa).
             filename (str | None): Nome do ficheiro.
         """
@@ -419,19 +417,19 @@ class EDAPlotter:
     def rate_by_category(self, df, cat_col, target_col, order=None, min_count=100,
                          xlabel=None, filename=None):
         """
-        Barras com a média de um alvo binário por categoria (ex.: taxa de default por grade).
+        Barras com a média de um alvo binário por categoria
 
         Uma só série -> uma só cor. O valor de cada barra está escrito no fim da barra, e a
-        linha vertical cinzenta é a taxa global, para comparar.
+        linha vertical cinzenta é a taxa global
 
         Parameters:
-            df (pd.DataFrame): Dados.
-            cat_col (str): Categoria (ex.: "grade", "purpose").
-            target_col (str): Alvo binário 0/1 (ex.: "is_default").
-            order (list | None): Ordem das categorias (ex.: A..G). Por omissão, pela taxa.
-            min_count (int): Ignora categorias com poucos casos.
-            xlabel (str | None): Rótulo do eixo.
-            filename (str | None): Nome do ficheiro.
+            df (pd.DataFrame): Dados
+            cat_col (str): Categoria
+            target_col (str): Alvo binário
+            order (list | None): Ordem das categorias. Por omissão, pela taxa
+            min_count (int): Ignora categorias com poucos casos
+            xlabel (str | None): Rótulo do eixo
+            filename (str | None): Nome do ficheiro
         """
         grouped = df.groupby(cat_col, observed=True)[target_col].agg(["mean", "size"])
         grouped = grouped[grouped["size"] >= min_count]
@@ -458,17 +456,17 @@ class EDAPlotter:
 
     def rate_by_bins(self, df, num_col, target_col, q=10, filename=None):
         """
-        Taxa de um alvo binário por decil de uma variável numérica (linha com pontos).
+        Taxa de um alvo binário por decil de uma variável numérica (linha com pontos)
 
         Mostra se o risco sobe ou desce com a variável e se a relação é linear ou não
-        (ex.: taxa de default por decil de dti). Útil antes dos testes de hipóteses.
+        Útil antes dos testes de hipóteses
 
         Parameters:
-            df (pd.DataFrame): Dados.
-            num_col (str): Variável numérica.
-            target_col (str): Alvo binário 0/1.
-            q (int): Número de grupos (10 = decis).
-            filename (str | None): Nome do ficheiro.
+            df (pd.DataFrame): Dados
+            num_col (str): Variável numérica
+            target_col (str): Alvo binário 0/1
+            q (int): Número de grupos (10 = decis)
+            filename (str | None): Nome do ficheiro
         """
         data = df[[num_col, target_col]].dropna()
         bins = pd.qcut(data[num_col], q=q, duplicates="drop")
@@ -486,20 +484,20 @@ class EDAPlotter:
 
     def correlation_heatmap(self, df, cols, method="spearman", filename=None):
         """
-        Mapa de calor da matriz de correlação, com escala divergente (-1 azul, 0 cinzento,
+        Mapa de calor da matriz de correlação com escala divergente (-1 azul, 0 cinzento,
         +1 vermelho). Os valores com |r| >= 0,3 são escritos na célula; a diagonal (sempre 1)
-        fica em branco.
+        fica em branco (pois não faz sentido mostrar).
 
         Parameters:
-            df (pd.DataFrame): Dados.
-            cols (list[str]): Colunas numéricas (inclui o alvo, se for numérico).
-            method (str): "spearman" ou "pearson".
-            filename (str | None): Nome do ficheiro.
+            df (pd.DataFrame): Dados
+            cols (list[str]): Colunas numéricas
+            method (str): "spearman" ou "pearson"
+            filename (str | None): Nome do ficheiro
         """
         corr = df[cols].corr(method=method)
         n = len(cols)
         shown = corr.values.copy()
-        np.fill_diagonal(shown, np.nan)          # a diagonal é sempre 1: não interessa
+        np.fill_diagonal(shown, np.nan)          # a diagonal não interessa por ser sempre 1
         fig, ax = plt.subplots(figsize=(0.42 * n + 2.2, 0.42 * n + 1.6))
         im = ax.imshow(shown, cmap=ps.DIVERGING_CMAP, vmin=-1, vmax=1)
         ax.set_xticks(range(n), cols, rotation=90)
@@ -521,7 +519,7 @@ class EDAPlotter:
     # ------------------------------------------------------------------ privados
 
     def _save(self, fig, filename):
-        """Grava a figura (se houver nome) e devolve-a."""
+        """Grava a figura e devolve-a"""
         if filename:
             self.figures_dir.mkdir(parents=True, exist_ok=True)
             fig.savefig(self.figures_dir / filename)

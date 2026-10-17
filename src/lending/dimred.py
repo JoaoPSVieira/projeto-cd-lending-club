@@ -43,7 +43,7 @@ class DimensionalityReducer:
         1. log10(1 + x) nas colunas muito assimétricas indicadas (transformação fixa);
         2. imputação pela mediana (aprendida no treino);
         3. padronização: média 0, desvio-padrão 1 (aprendida no treino).
-    Sem a padronização, variáveis com números grandes (ex.: rendimento) dominariam o
+    Sem a padronização, variáveis com números grandes (ex: rendimento) dominariam o
     PCA só pela escala (T-02, feature scaling).
 
     Attributes:
@@ -63,7 +63,7 @@ class DimensionalityReducer:
         """
         Parameters:
             numeric_cols (list[str]): Colunas numéricas a usar.
-            log_cols (iterable[str]): Colunas com cauda longa (ex.: annual_inc, revol_bal).
+            log_cols (iterable[str]): Colunas com cauda longa (ex: annual_inc, revol_bal).
             sample_size (int): Linhas usadas no UMAP e desenhadas nos gráficos.
             seed (int): Semente (amostra, UMAP).
             figures_dir (str | Path): Pasta das figuras.
@@ -123,7 +123,7 @@ class DimensionalityReducer:
     def _drop_unusable(self, df):
         """
         Retira (com aviso) colunas que não servem para o PCA/UMAP: inexistentes, sempre
-        vazias ou constantes. Ex.: uma coluna do bureau que só existe a partir de 2012
+        vazias ou constantes. Ex: uma coluna do bureau que só existe a partir de 2012
         está toda vazia no treino da classificação.
         """
         bad = [c for c in self.numeric_cols
@@ -153,7 +153,7 @@ class DimensionalityReducer:
         escolher pelo valor acumulado da variância explicada).
 
         Parameters:
-            threshold (float): Fração (ex.: 0.8 = 80%).
+            threshold (float): Fração (ex: 0.8 = 80%).
         """
         cumulative = self.explained_variance()["acumulada_%"].values / 100
         return int(np.argmax(cumulative >= threshold) + 1)
@@ -162,7 +162,7 @@ class DimensionalityReducer:
         """
         Pesos das variáveis nas primeiras componentes: dizem o que cada componente "mede".
 
-        Ex.: se PC1 tem pesos altos em revol_bal, tot_cur_bal e total_acc, PC1 resume
+        Ex: se PC1 tem pesos altos em revol_bal, tot_cur_bal e total_acc, PC1 resume
         "volume de crédito" do mutuário. É isto que torna o PCA interpretável.
 
         Parameters:
@@ -185,7 +185,7 @@ class DimensionalityReducer:
         Projeta df nas primeiras componentes, SEM reajustar (só transform).
 
         Parameters:
-            df (pd.DataFrame): Dados a projetar (ex.: a amostra para o gráfico).
+            df (pd.DataFrame): Dados a projetar (ex: a amostra para o gráfico).
             n_components (int): Componentes devolvidas.
 
         Returns:
@@ -205,7 +205,7 @@ class DimensionalityReducer:
 
         Parameters:
             df (pd.DataFrame): Dados de TREINO / desenvolvimento.
-            stratify (str | None): Coluna para estratificar a amostra (ex.: a classe).
+            stratify (str | None): Coluna para estratificar a amostra (ex: a classe).
             n_neighbors (int): Tamanho da vizinhança (maior = mais estrutura global).
             min_dist (float): Distância mínima entre pontos no mapa (menor = grupos mais densos).
 
@@ -232,7 +232,7 @@ class DimensionalityReducer:
 
         Parameters:
             max_components (int): Componentes mostradas.
-            threshold (float): Limiar desenhado (ex.: 0.8).
+            threshold (float): Limiar desenhado (ex: 0.8).
             filename (str | None): Nome do ficheiro.
         """
         ev = self.explained_variance().head(max_components)
@@ -261,9 +261,9 @@ class DimensionalityReducer:
         """
         Desenha um mapa 2D (PCA ou UMAP) com os pontos coloridos por uma variável.
 
-        - kind="categorical": classes (ex.: Good / Default). Máx. 3 categorias. Pontos da
+        - kind="categorical": classes (ex: Good / Default). Máx. 3 categorias. Pontos da
           classe mais pequena desenhados por cima, para não ficarem escondidos.
-        - kind="continuous": valor numérico (ex.: int_rate), escala sequencial azul.
+        - kind="continuous": valor numérico (ex: int_rate), escala sequencial azul.
 
         Parameters:
             coords (np.ndarray): shape (n, 2).
@@ -271,7 +271,7 @@ class DimensionalityReducer:
             kind (str): "categorical" ou "continuous".
             order (list | None): Só para categorias: a cor segue esta ordem (1.º azul,
                 2.º laranja, 3.º verde-água). Usa a MESMA ordem em todas as figuras, para que
-                cada classe tenha sempre a mesma cor (ex.: CLASS_ORDER no notebook).
+                cada classe tenha sempre a mesma cor (ex: CLASS_ORDER no notebook).
             label (str | None): Nome da variável de cor (legenda / barra de cor).
             title (str | None): Título.
             xlabel, ylabel (str): Rótulos dos eixos.

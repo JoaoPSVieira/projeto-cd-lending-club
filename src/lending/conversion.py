@@ -266,8 +266,8 @@ class DatasetSummary:
 
         Parameters:
             summaries (list[DatasetSummary]): Resumos a incluir
-            path (str | Path): Ficheiro de destino (ex.: docs/dados_origem.md)
-            download_date (str | None): Data do download do Kaggle (ex.: "2026-10-14")
+            path (str | Path): Ficheiro de destino (ex: docs/dados_origem.md)
+            download_date (str | None): Data do download do Kaggle (ex: "2026-10-14")
 
         Returns:
             Path: Caminho do ficheiro escrito

@@ -12,7 +12,7 @@ cada mês, todos os empréstimos do mesmo mês ficam sempre na mesma partição.
 
 | Data | Valor | Justificação |
 |---|---|---|
-| **Cutoff de observação comum** | 31/12/2018 | O dataset cobre empréstimos até ao 4.º trimestre de 2018 (`accepted_2007_to_2018Q4`, enunciado: "2007–2018"). O `loan_status` é tratado como a fotografia do estado de cada empréstimo nesta data. A data vem da documentação do dataset e **não** é inferida a partir das datas de pagamento; na limpeza apenas se verifica a consistência (ex.: nenhum `issue_d` posterior) |
+| **Cutoff de observação comum** | 31/12/2018 | O dataset cobre empréstimos até ao 4.º trimestre de 2018 (`accepted_2007_to_2018Q4`, enunciado: "2007–2018"). O `loan_status` é tratado como a fotografia do estado de cada empréstimo nesta data. A data vem da documentação do dataset e **não** é inferida a partir das datas de pagamento; na limpeza apenas se verifica a consistência (ex: nenhum `issue_d` posterior) |
 | **Data de treino simulada** | 01/01/2015 | Simula um modelo treinado no início de 2015 e aplicado aos empréstimos concedidos durante 2015 |
 
 ---
@@ -42,7 +42,7 @@ Os pedidos **rejeitados** seguem os mesmos cortes, usando `Application Date`.
 |---|---|
 | Coorte | Todos os empréstimos financiados com `int_rate` preenchido (36 e 60 meses, incluindo `Current`) |
 | Treino + validação | `issue_d` de 2007-06 a 2014-12 |
-| Validação | Validação cruzada temporal com **janela expansível** por ano civil: cada *fold* treina com todos os anos anteriores e valida no ano seguinte (ex.: treino até 2010 -> valida 2011; …; treino até 2013 -> valida 2014) |
+| Validação | Validação cruzada temporal com **janela expansível** por ano civil: cada *fold* treina com todos os anos anteriores e valida no ano seguinte (ex: treino até 2010 -> valida 2011; …; treino até 2013 -> valida 2014) |
 | Teste final | `issue_d` de 2015-01 a 2015-12 |
 
 **Observabilidade do alvo:** `int_rate` é conhecido no momento da concessão. Na data de
@@ -96,7 +96,7 @@ por ano). Todos os rótulos de treino são conhecidos na data de treino simulada
 podem ser usados para escolher hiperparâmetros; a ordem temporal evita que padrões mais
 recentes sejam usados para prever empréstimos mais antigos.
 
-**Desequilíbrio de classes:** qualquer reamostragem (ex.: *oversampling*) é aplicada apenas
+**Desequilíbrio de classes:** qualquer reamostragem (ex: *oversampling*) é aplicada apenas
 dentro dos *folds* de treino. O teste final nunca é reequilibrado.
 
 ### 4.4 Limitações
@@ -107,7 +107,7 @@ dentro dos *folds* de treino. O teste final nunca é reequilibrado.
   2015, depois de mudanças na política de crédito e no mercado. Esta diferença faz parte
   do que se pretende avaliar.
 - **O rótulo é o estado a 31/12/2018**, e não o estado exato em 01/01/2015. Para empréstimos
-  cujo prazo já tinha terminado, a diferença é pequena (ex.: um atraso no fim do prazo que
+  cujo prazo já tinha terminado, a diferença é pequena (ex: um atraso no fim do prazo que
   mais tarde passou a *Charged Off*).
 - **A classe "At risk"** fica rara, porque poucos empréstimos continuam em atraso depois do
   fim do prazo.
@@ -130,7 +130,7 @@ O teste final e o período reservado **nunca** são usados nestas análises.
 
 ## 6. Outras regras
 
-- **Amostragem reprodutível:** quando for preciso trabalhar com amostras (ex.: UMAP, testes
+- **Amostragem reprodutível:** quando for preciso trabalhar com amostras (ex: UMAP, testes
   com amostras grandes), estas são aleatórias, com semente fixa e documentada, e nunca as
   primeiras linhas do ficheiro.
 - **Duplicados:** são detetados pelo `id` do empréstimo na limpeza.

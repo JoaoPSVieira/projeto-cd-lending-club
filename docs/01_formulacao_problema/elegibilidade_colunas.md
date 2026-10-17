@@ -54,7 +54,7 @@ As decisões foram tomadas a partir do enunciado e do dicionário de dados
 | `funded_amnt_inv` | Parte financiada por investidores | T3 | ❌ | ❌ | ❌ | Posterior ao pricing. Descreve a repartição do financiamento entre investidores e não o risco do mutuário; o dicionário ("*at that point in time*") não garante que seja o valor na concessão - excluído por precaução |
 | `initial_list_status` | Modo de listagem inicial (W/F) | T3 | ❌ | ✅ | ❌ | Decidido na listagem, depois do pricing. Na concessão já é conhecido e "*initial*" garante que é o valor original |
 | `disbursement_method` | Modo de desembolso | T4 | ❌ | ❌ | ❌ | Momento de definição incerto (pode ser escolhido ou alterado até ao desembolso). O enunciado manda excluir em caso de dúvida |
-| `issue_d` | Mês de financiamento | T4 | ❌ | ⚠️ | ❌ | Mês de financiamento, não data do pedido: futuro em relação a T0. Usado na **divisão temporal** de todas as tarefas. Na classificação só como feature temporal justificada (ex.: ano de concessão) e como referência para a antiguidade do crédito |
+| `issue_d` | Mês de financiamento | T4 | ❌ | ⚠️ | ❌ | Mês de financiamento, não data do pedido: futuro em relação a T0. Usado na **divisão temporal** de todas as tarefas. Na classificação só como feature temporal justificada (ex: ano de concessão) e como referência para a antiguidade do crédito |
 
 ---
 
@@ -284,7 +284,7 @@ removidas - por exemplo `has_recovery` ou uma contagem de campos `hardship_*` n�
 ## Regras transversais
 
 1. **Derivadas herdam a elegibilidade das colunas de origem.** Uma feature calculada a
-   partir de uma coluna ❌ é também ❌ (ex.: `installment / annual_inc` na regressão).
+   partir de uma coluna ❌ é também ❌ (ex: `installment / annual_inc` na regressão).
 2. **Não aplicável ≠ em falta.** Campos do 2.º proponente e `mths_since_*` vazios podem
    significar que o caso não se aplica; não se imputam automaticamente com zero.
 3. **Pressuposto da fotografia histórica.** Os campos do *bureau* e do pedido são assumidos
