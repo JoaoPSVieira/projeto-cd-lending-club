@@ -33,6 +33,20 @@ REJECTED_CSV = RAW_DIR / "rejected_2007_to_2018Q4.csv.gz"
 ACCEPTED_RAW_PKL = PROCESSED_DIR / "accepted_raw.pkl"
 REJECTED_RAW_PKL = PROCESSED_DIR / "rejected_raw.pkl"
 
+# ---------------------------------------------------------------------------
+# Partições (Etapa 2: limpeza + split) Dados já limpos e com tipos corretos
+# ---------------------------------------------------------------------------
+
+REG_DEV_PKL = PROCESSED_DIR / "regressao_dev.pkl"          # regressão: 2013-01 a 2014-12
+CLS_TRAIN_PKL = PROCESSED_DIR / "classificacao_treino.pkl" # classificação: 36m, 2007-06 a 2011-12
+ACCEPTED_DEV_PKL = PROCESSED_DIR / "aceites_dev.pkl"       # aceites: 2007-06 a 2014-12 (testes de hipóteses)
+REJECTED_DEV_PKL = PROCESSED_DIR / "rejeitados_dev.pkl"    # rejeitados: 2007 a 2014
+TEST_PKL = PROCESSED_DIR / "teste_2015.pkl"                # teste final
+
+# Coluna do alvo da classificação e ordem fixa das classes. Usar sempre esta ordem em tabelas e figuras
+CLASS_COL = "target"
+CLASS_ORDER = ["Good standing", "Default"]
+
 # ------------
 # Constantes -
 # ------------
