@@ -40,8 +40,9 @@ ACCEPTED_TEST_RAW_PKL = PROCESSED_DIR / "accepted_test_raw.pkl"
 # Registo das linhas removidas/separadas até chegar ao conjunto de desenvolvimento
 ACCEPTED_DEV_LOG_PKL = PROCESSED_DIR / "accepted_dev_exclusions.pkl"
 
-# Registos de exclusões de cada tarefa
+# Registos de exclusões de cada tarefa e do teste final
 COHORT_LOGS_PKL = PROCESSED_DIR / "accepted_dev_cohort_logs.pkl"
+TEST_LOG_PKL = PROCESSED_DIR / "accepted_test_exclusions.pkl"
 
 # -------------------------------------------------------------------------
 # - Conjuntos para a análise e a modelação: já limpos e com tipos corretos -

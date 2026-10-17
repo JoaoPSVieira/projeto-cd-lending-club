@@ -56,3 +56,13 @@ _Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` — não edita
 | 5 | Coorte do clustering de mutuários | remoção | nenhum filtro adicional | Usa todos os empréstimos do desenvolvimento (coorte_alvo.md) | 466,124 | 0 | 466,124 |
 
 **Linhas finais: 466,124**
+
+## Teste final (2015): ficheiro accepted -> teste limpo
+
+| N.º | Passo | Tipo | Regra | Justificação | Antes | Removidas | Depois |
+|---:|---|---|---|---|---:|---:|---:|
+| 1 | Linhas que não são empréstimos | remoção | id não numérico e todas as outras colunas vazias | Totais e separadores das exportações da LendingClub, não são empréstimos | 2,260,701 | 33 | 2,260,668 |
+| 2 | Separar o desenvolvimento e o período reservado | partição | issue_d fora de 2015-01 a 2015-12 | Só os empréstimos do teste final (desenho_split.md) | 2,260,668 | 1,839,573 | 421,095 |
+| 3 | Condições modificadas depois da concessão | remoção | int_rate = 6.00 num grau B a G, ou \|installment - fórmula de amortização\| > 1 USD | Taxa ou prestação alteradas depois da concessão; o enunciado pede os valores originais | 421,095 | 207 | 420,888 |
+
+**Linhas finais: 420,888**
