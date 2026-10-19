@@ -25,6 +25,11 @@ from lending import plot_style as ps
 from lending.config import FIGURES_DIR, RANDOM_SEED
 from lending.sampling import ReproducibleSampler
 
+def _label(value):
+    """Rótulo legível de uma categoria: números inteiros sem casas decimais (36.0 -> "36")."""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
 
 # =============================================================================
 # Tabelas
@@ -345,7 +350,7 @@ class EDAPlotter:
         for box in bp["boxes"]:
             box.set_facecolor(ps.SERIES_1)
             box.set_alpha(0.85)
-        ax.set_yticks(range(1, len(order) + 1), [f"{c}  (n={counts[c]:,})" for c in order])
+        ax.set_yticks(range(1, len(order) + 1), [f"{_label(c)}  (n={counts[c]:,})" for c in order])
         ax.set_xlabel(num_col)
         ax.grid(axis="y", visible=False)
         ax.set_title(f"{num_col} por {cat_col}", loc="left")
@@ -407,7 +412,7 @@ class EDAPlotter:
             ax.scatter(pts, y - 0.25 + rng.uniform(-0.08, 0.08, len(pts)), s=2,
                        color=color, alpha=0.35, linewidths=0)
 
-        ax.set_yticks(range(len(order), 0, -1), [str(g) for g in order])
+        ax.set_yticks(range(len(order), 0, -1), [_label(g) for g in order])
         ax.set_xlabel(f"log10(1 + {num_col})" if log else num_col)
         ax.grid(axis="y", visible=False)
         ax.set_title(f"{num_col} por {group_col}", loc="left")
@@ -439,7 +444,7 @@ class EDAPlotter:
             grouped = grouped.reindex([c for c in order if c in grouped.index][::-1])
 
         fig, ax = plt.subplots(figsize=(6, max(1.8, 0.3 * len(grouped) + 0.8)))
-        ax.barh([str(c) for c in grouped.index], grouped["mean"] * 100, color=ps.SERIES_1, height=0.7)
+        ax.barh([_label(c) for c in grouped.index], grouped["mean"] * 100, color=ps.SERIES_1, height=0.7)
         for y, (rate, n) in enumerate(zip(grouped["mean"], grouped["size"])):
             ax.text(rate * 100 + 0.3, y, f"{rate*100:.1f}%  (n={n:,})", va="center",
                     fontsize=7, color=ps.INK_SECONDARY)
