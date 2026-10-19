@@ -50,7 +50,7 @@ perfil de crédito do requerente.
 | `verification_status*` **excluídos** | Não é possível garantir que a verificação estava concluída antes do pricing |
 | Tudo o que surge em T5–T6 **excluído** | Informação posterior à concessão |
 | `loan_amnt`, `term`, `purpose`, `title` **permitidos** | Assume-se que os valores registados são os do pedido; limitação: podem ter sido ajustados depois |
-| Antiguidade do crédito | **Não** calcular como `issue_d − earliest_cr_line`, porque `issue_d` é uma data futura em relação ao pedido. Usar variáveis de antiguidade já calculadas pelo *bureau* (ex.: `mo_sin_old_rev_tl_op`) ou outra referência anterior ao pricing |
+| Antiguidade do crédito | **Não** calcular como `issue_d − earliest_cr_line`, porque `issue_d` é uma data futura em relação ao pedido. Usar variáveis de antiguidade já calculadas pelo *bureau* (ex: `mo_sin_old_rev_tl_op`) ou outra referência anterior ao pricing |
 
 ---
 
@@ -64,10 +64,10 @@ o pricing, o financiamento e a data de concessão. Nenhum pagamento foi ainda ob
 | `grade`, `sub_grade`, `int_rate`, `installment` **permitidos** | Já estão fixados na concessão; usam-se os valores originais |
 | `verification_status*` **permitidos** | A verificação está concluída antes de o empréstimo ser concedido |
 | `funded_amnt`, `funded_amnt_inv`, `initial_list_status` | Candidatos (conhecidos em T3, antes da concessão); decisão final na tabela de elegibilidade |
-| `issue_d` | Permitido como preditor quando justificado (ex.: ano ou mês de concessão); usado também na divisão temporal |
+| `issue_d` | Permitido como preditor quando justificado (ex: ano ou mês de concessão); usado também na divisão temporal |
 | Antiguidade do crédito | Calculada relativamente a `issue_d` (`issue_d − earliest_cr_line`), não à data de hoje nem a um *credit pull* posterior |
 | Tudo o que surge em T5–T6 **excluído** | Descreve o que aconteceu depois da concessão; `loan_status` é usado **apenas** para construir o alvo |
-| Variáveis derivadas de campos excluídos **excluídas** | Ex.: `has_recovery`, contagem de campos `hardship_*` preenchidos |
+| Variáveis derivadas de campos excluídos **excluídas** | Ex: `has_recovery`, contagem de campos `hardship_*` preenchidos |
 
 ---
 
