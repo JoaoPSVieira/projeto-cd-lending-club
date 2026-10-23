@@ -58,6 +58,9 @@ ACCEPTED_DEV_PKL = PROCESSED_DIR / "aceites_dev.pkl"          # aceites: 2007-06
 REJECTED_DEV_PKL = PROCESSED_DIR / "rejeitados_dev.pkl"       # rejeitados: mesmos cortes, por Application Date
 TEST_PKL = PROCESSED_DIR / "teste_2015.pkl"                   # teste final: só na avaliação final
 
+# Tabelas em CSV para os testes de hipóteses em R (o R não lê os pickles)
+HYPOTHESIS_DIR = PROCESSED_DIR / "hipoteses"
+
 # Coluna do alvo da classificação e ordem fixa das classes. Usar sempre esta ordem em
 # tabelas e figuras. Classificação binária (decisão do grupo, docs/02_preprocessamento/coortes.md)
 CLASS_COL = "target"
