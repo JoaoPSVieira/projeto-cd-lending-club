@@ -2,8 +2,8 @@
 Amostragem reprodutível
 
 O enunciado exige "reproducible sampling" e proíbe usar as primeiras linhas do ficheiro
-como amostra (como o ficheiro está ordenado no tempo, as primeiras linhas são só dos
-primeiros anos). Todas as amostras do projeto passam por aqui
+como amostra. Como o ficheiro está ordenado no tempo, as primeiras linhas são só dos
+primeiros anos. Todas as amostras do projeto passam por aqui
 
 Quando são usadas:
     - gráficos com centenas de milhares de pontos (só se desenha uma amostra)
