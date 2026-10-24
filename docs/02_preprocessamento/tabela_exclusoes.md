@@ -1,6 +1,6 @@
 # Tabela de exclusões
 
-_Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` — não editar à mão._
+_Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` - não editar à mão._
 
 - Gerado em: 2026-10-17
 - Tipo "remoção": as linhas deixam de existir. Tipo "partição": as linhas são válidas mas ficam à parte (ex.: teste final, embargo).

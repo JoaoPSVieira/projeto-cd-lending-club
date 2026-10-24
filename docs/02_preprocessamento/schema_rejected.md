@@ -1,6 +1,6 @@
 # Schema: rejected, desenvolvimento
 
-_Gerado automaticamente por `notebooks/01b_rejeitados.ipynb` — não editar à mão._
+_Gerado automaticamente por `notebooks/01b_rejeitados.ipynb` - não editar à mão._
 
 - Conjunto descrito: rejected, desenvolvimento, 3,450,084 linhas x 9 colunas
 - Gerado em: 2026-10-17

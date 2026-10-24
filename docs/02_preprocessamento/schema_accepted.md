@@ -1,6 +1,6 @@
 # Schema: accepted, desenvolvimento
 
-_Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` — não editar à mão._
+_Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` - não editar à mão._
 
 - Conjunto descrito: accepted, desenvolvimento, 466,345 linhas x 151 colunas
 - Gerado em: 2026-10-17
