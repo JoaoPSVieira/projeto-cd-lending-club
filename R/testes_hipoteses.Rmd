@@ -653,6 +653,108 @@ cat("Gravado:", destino, "\n")
   - não há identificador do mutuário, por isso a independência das observações é aproximada;
   - o montante dos aceites pode ter sido ajustado e a sua data é a de financiamento.
 
+# Figuras para o relatório
+
+Duas figuras resumem os resultados mais visuais: a taxa de *default* por `purpose` (hipótese b) e
+a percentagem de pedidos rejeitados por faixa de *risk score* (hipótese c2). Usam os números
+calculados acima e o estilo das figuras da análise exploratória (`src/lending/plot_style.py`:
+fundo, cores e valores escritos ao lado das barras). São gravadas em `reports/figures/`, ao lado
+das figuras da análise exploratória.
+
+```{r figuras-estilo}
+FIGURAS <- file.path("reports", "figures")
+dir.create(FIGURAS, showWarnings = FALSE, recursive = TRUE)
+
+# Cores de src/lending/plot_style.py
+SURFACE <- "#fcfcfb"; INK <- "#0b0b0b"; INK2 <- "#52514e"; MUTED <- "#898781"
+GRID <- "#e1e0d9"; AXIS <- "#c3c2b7"; AZUL <- "#2a78d6"; LARANJA <- "#eb6834"; CINZA <- "#c3c2b7"
+
+milhares <- function(x) format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
+
+# Barras horizontais com o valor escrito à direita e uma linha vertical para a média global.
+# xmax é a largura da área do gráfico (deixa espaço para o texto); eixo é o fim da escala.
+barras_h <- function(rotulos, valores, textos, cores, titulo, xlab, xmax, eixo = xmax,
+                     ic_inf = NULL, ic_sup = NULL, linha = NULL, linha_txt = NULL,
+                     legenda = NULL) {
+  par(mar = c(3.2, 9.5, 2.2, 1), bg = SURFACE, family = "sans", fg = AXIS, col.axis = MUTED,
+      col.lab = INK2, cex.axis = 0.75, mgp = c(2, 0.5, 0), tcl = -0.25)
+  n <- length(valores)
+  y <- rev(seq_len(n))                     # o primeiro valor fica em cima
+  plot(NA, xlim = c(0, xmax), ylim = c(0.4, n + 0.6), xaxt = "n", yaxt = "n", xaxs = "i",
+       bty = "n", xlab = "", ylab = "")
+  marcas <- pretty(c(0, eixo))
+  marcas <- marcas[marcas <= eixo]
+  abline(v = marcas, col = GRID, lwd = 0.6)
+  rect(0, y - 0.35, valores, y + 0.35, col = cores, border = NA)
+  if (!is.null(ic_inf)) segments(ic_inf, y, ic_sup, y, col = INK2, lwd = 1)
+  if (!is.null(linha)) {
+    abline(v = linha, col = MUTED, lwd = 1.2)
+    text(linha, n + 0.6, linha_txt, pos = 4, col = MUTED, cex = 0.7, xpd = TRUE)
+  }
+  pos_texto <- if (is.null(ic_sup)) valores else pmax(valores, ic_sup)
+  text(pos_texto, y, textos, pos = 4, col = INK2, cex = 0.68, xpd = TRUE)
+  axis(1, at = marcas, col = AXIS, col.ticks = AXIS)
+  axis(2, at = y, labels = rotulos, las = 1, col = NA, col.ticks = AXIS)
+  segments(0, 0.4, 0, n + 0.6, col = AXIS)
+  mtext(xlab, side = 1, line = 2, col = INK2, cex = 0.8)
+  mtext(titulo, side = 3, line = 0.8, adj = 0, col = INK, cex = 0.95)
+  if (!is.null(legenda)) legend("bottomright", legenda$texto, fill = legenda$cor, border = NA,
+                                bty = "n", cex = 0.68, text.col = INK2, inset = c(0.01, 0.02))
+}
+
+# Desenha no relatório HTML e grava o mesmo gráfico em PNG (tamanho das figuras do projeto)
+gravar <- function(ficheiro, desenhar) {
+  desenhar()
+  png(file.path(FIGURAS, ficheiro), width = 1185, height = 565, res = 150, bg = SURFACE)
+  desenhar()
+  invisible(dev.off())
+}
+```
+
+```{r figura-purpose, fig.width = 7.9, fig.height = 3.8}
+# Hipótese (b): taxa, IC 95% e resíduo de cada purpose (calculados na secção da hipótese b)
+fig_b <- merge(por_purpose[, .(purpose, n, taxa, ic95_inf, ic95_sup)],
+               residuos[, .(purpose, residuo)], by = "purpose")
+setorder(fig_b, -taxa)
+fig_b[, cor := ifelse(abs(residuo) > z_critico, ifelse(residuo > 0, LARANJA, AZUL), CINZA)]
+
+gravar("hip_default_por_purpose.png", function() barras_h(
+  fig_b$purpose, fig_b$taxa, sprintf("%.1f%%  (n=%s)", fig_b$taxa, milhares(fig_b$n)), fig_b$cor,
+  "Taxa de default por purpose (IC 95%)", "% default", xmax = 32,
+  ic_inf = fig_b$ic95_inf, ic_sup = fig_b$ic95_sup,
+  linha = 100 * taxa_global, linha_txt = sprintf("global %.1f%%", 100 * taxa_global),
+  legenda = list(texto = c("acima da média (Bonferroni)", "abaixo da média", "sem diferença"),
+                 cor = c(LARANJA, AZUL, CINZA))))
+```
+
+```{r figura-risk-score, fig.width = 7.9, fig.height = 3.8}
+# Hipótese (c2): % de rejeitados por faixa de risk score (calculada na secção da hipótese c2)
+rotulos_faixa <- c("< 550", "550-599", "600-649", "650-699", "700-749", "750-799", "800-850")
+total_faixa <- por_faixa$aceites + por_faixa$rejeitados
+rejeicao_global <- 100 * sum(por_faixa$rejeitados) / sum(total_faixa)
+
+gravar("hip_rejeicao_por_risk_score.png", function() barras_h(
+  rotulos_faixa, por_faixa$pct_rejeitados,
+  sprintf("%.1f%%  (n=%s)", por_faixa$pct_rejeitados, milhares(total_faixa)), LARANJA,
+  "Pedidos rejeitados por faixa de risk score (2007-06 a 2013-10)", "% rejeitados",
+  xmax = 125, eixo = 100,
+  linha = rejeicao_global, linha_txt = sprintf("global %.1f%%", rejeicao_global)))
+```
+
+**Como ler as figuras:**
+
+- **Taxa de *default* por `purpose`:** cada barra tem o intervalo de confiança a 95% e a linha
+  vertical é a taxa global. A cor resulta do teste: laranja e azul são os *purposes* cujo resíduo
+  passa o valor crítico de Bonferroni (acima e abaixo da média); cinzento os que não se
+  distinguem dela. O *renewable_energy* tem uma taxa alta mas fica cinzento, porque com 79
+  empréstimos o intervalo é largo; o *other* tem uma taxa mais baixa do que o *moving*, mas fica
+  laranja, porque com 3 522 empréstimos o intervalo é estreito.
+- **Rejeitados por faixa de *risk score*:** a percentagem de pedidos rejeitados **nos dados**
+  em cada faixa (aceites e rejeitados do período FICO). Não é exatamente a probabilidade de um
+  requerente ser rejeitado, porque os aceites são contados pela data de financiamento e os
+  rejeitados pela do pedido, mas mostra a associação: a rejeição é praticamente total abaixo de
+  600 pontos e desce até cerca de 65% nas faixas altas.
+
 # Reprodutibilidade
 
 Para gerar este relatório (a partir da pasta do projeto, depois de correr
