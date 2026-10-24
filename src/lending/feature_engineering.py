@@ -149,6 +149,21 @@ def _open_acc_pct(df):
     return 100 * safe_ratio(df["open_acc"], df["total_acc"])
 
 
+def _ever_delinquent(df):
+    # mths_since_last_delinq vazio = nunca houve atraso (os zeros disfarçados de 2007-2008
+    # já passaram a vazio na limpeza); delinq_2yrs só cobre os últimos 2 anos
+    delinq = df["delinq_2yrs"].astype("float64")
+    months = df["mths_since_last_delinq"]
+    flag = ((delinq > 0) | months.notna()).astype("float64")
+    # Sem nenhuma das duas não se sabe: NaN (não 0)
+    return flag.where(delinq.notna() | months.notna())
+
+
+def _has_public_record(df):
+    pub_rec = df["pub_rec"].astype("float64")
+    return (pub_rec > 0).astype("float64").where(pub_rec.notna())
+
+
 # =========================
 # = Catálogo das features =
 # =========================
@@ -258,7 +273,40 @@ FEATURES = [
         compute=_open_acc_pct,
         author="Rodrigo",
     ),
-    # COLOCAR AQUI AS OUTRAS 3
+    FeatureSpec(
+        name="ever_delinquent",
+        sources=("delinq_2yrs", "mths_since_last_delinq"),
+        formula="1 se delinq_2yrs > 0 ou mths_since_last_delinq preenchido; senão 0",
+        rationale="Indica se o mutuário já teve algum atraso de pagamento. O delinq_2yrs só conta "
+                  "os últimos 2 anos e o mths_since_last_delinq vazio quer dizer \"nunca\", por "
+                  "isso juntar as duas colunas dá o historial completo num valor simples, sem o "
+                  "problema de um vazio que significa ausência de evento. 48% dos empréstimos "
+                  "da regressão têm 1; no treino da classificação o default é 13,5% com atraso e "
+                  "11,7% sem.",
+        missing="NaN só se as duas colunas faltarem (não se sabe se houve atraso); "
+                "mths_since_last_delinq vazio sozinho significa \"nunca\" e dá 0. Os NaN são "
+                "imputados pela mediana do treino + indicador no pipeline.",
+        moment="T0",
+        tasks=("regression", "classification", "clustering"),
+        compute=_ever_delinquent,
+        author="Rodrigo",
+    ),
+    FeatureSpec(
+        name="has_public_record",
+        sources=("pub_rec",),
+        formula="1 se pub_rec > 0; senão 0",
+        rationale="Indica se o mutuário tem algum registo público negativo (ex.: falência, "
+                  "penhora). A contagem tem uma cauda longa e quase todos têm 0, por isso a "
+                  "diferença que importa é entre 0 e pelo menos 1. No treino da classificação, "
+                  "o default é 19,9% com registo e 11,9% sem; na regressão, a taxa média é "
+                  "14,70% contra 13,93%.",
+        missing="NaN se pub_rec faltar; imputação pela mediana do treino + indicador.",
+        moment="T0",
+        tasks=("regression", "classification", "clustering"),
+        compute=_has_public_record,
+        author="Rodrigo",
+    ),
+    # COLOCAR AQUI A ÚLTIMA
 ]
 
 
