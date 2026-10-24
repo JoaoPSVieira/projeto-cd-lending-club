@@ -12,7 +12,16 @@ registos sem valor.
 
 ## 1. Classificação
 
-### 1.1 Mapeamento de `loan_status` para as 3 classes
+> **Revisão feita na limpeza: a classificação é binária (*Good standing* vs *Default*).** A
+> classe *At risk* tem **0 casos no treino**: só existe em empréstimos ainda ativos, e a regra
+> de observabilidade (secção 1.3) deixa no treino apenas empréstimos já terminados. No teste,
+> os empréstimos *At risk* que apareçam **contam como *Default***: já passaram o fim do prazo
+> e continuam por pagar, e retirá-los seria escolher as linhas do teste pelo valor do alvo.
+> O mapeamento do enunciado para 3 classes (tabela abaixo) continua no código
+> (`TARGET_CLASSES`) e `BINARY_CLASSES` passa-o para 2 classes. Decisão e alternativas em
+> `docs/02_preprocessamento/coortes.md`, secção 4.1.
+
+### 1.1 Mapeamento de `loan_status` para as 3 classes do enunciado
 
 | `loan_status` | Classe | Justificação |
 |---|---|---|
@@ -25,7 +34,7 @@ registos sem valor.
 | Default | **Default** | Definição do enunciado |
 | Does not meet the credit policy. Status:Charged Off | **Default** | Empréstimo perdido; ver 1.2 |
 | Current | **Excluído** | Desfecho ainda desconhecido (enunciado) |
-| *(sem valor)* | **Excluído** | Registo sem estado; verificado na limpeza |
+| *(sem valor)* | **Excluído** | Registo sem estado. A limpeza mostrou que eram as linhas de totais das exportações (não são empréstimos): 0 no desenvolvimento |
 
 ### 1.2 Empréstimos "Does not meet the credit policy"
 
@@ -39,8 +48,9 @@ conhecido e final.
 | B - Excluir | População mais homogénea (só a política atual) | Perde casos com desfecho conhecido, sobretudo dos primeiros anos |
 
 **Decisão:** opção A. A indicação "does not meet the credit policy" **não** é usada como
-preditor, porque está codificada na coluna do alvo. O número de casos afetados é
-registado na tabela de exclusões/mapeamentos da limpeza.
+preditor, porque está codificada na coluna do alvo. Na limpeza contaram-se 2 748 casos no
+desenvolvimento, dos quais 2 437 no treino da classificação
+(`docs/02_preprocessamento/coortes.md`).
 
 ### 1.3 Coorte da classificação
 
@@ -55,8 +65,9 @@ rótulos e é justificada no desenho do split.
 
 - **"At risk" não é um desfecho final.** É o estado do empréstimo na data de extração
   (≈ fim de março de 2019): um empréstimo em atraso pode ainda vir a ser pago ou a entrar
-  em default.
-  Segue-se a definição do enunciado e a limitação é discutida no relatório.
+  em default. Por isso, com a regra de observabilidade, não há nenhum caso no treino e a
+  classificação ficou binária (ver a revisão no início desta secção). É uma limitação
+  discutida no relatório: o modelo não prevê o atraso, só o desfecho final.
 - **Viés de seleção por excluir os `Current`.** Nos anos mais recentes, os empréstimos que
   já terminaram são sobretudo os que entraram em incumprimento cedo ou foram pagos
   antecipadamente; os restantes ainda estão `Current`. As coortes recentes ficam por isso
@@ -95,6 +106,6 @@ No clustering de estados, os pedidos rejeitados são associados ao estado pela c
 | Tarefa | Inclui | Exclui |
 |---|---|---|
 | Regressão | Todos os financiados com `int_rate` | - |
-| Classificação | 36 meses com prazo terminado: Fully Paid, Late, In Grace Period, Charged Off, Default, "Does not meet…" | `Current`, sem estado, 60 meses, prazo por terminar (embargo) |
+| Classificação (binária) | 36 meses com prazo terminado: Fully Paid, Charged Off, Default, "Does not meet…"; no teste, Late e In Grace Period contam como *Default* | `Current`, sem estado, 60 meses, prazo por terminar (embargo) |
 | Clustering - mutuários | Financiados (desenvolvimento) | Período de teste |
 | Clustering - estados | Aceites + rejeitados (desenvolvimento) | Período de teste |

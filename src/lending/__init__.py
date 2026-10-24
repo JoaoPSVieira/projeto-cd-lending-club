@@ -27,9 +27,9 @@ Módulos:
     eda           Tabelas descritivas (DescriptiveAnalysis) e gráficos (EDAPlotter).
     dimred        Redução de dimensionalidade: PCA e UMAP (DimensionalityReducer).
 
-    Fase 3 - seleção de modelos
-    feature_engineering  Features novas: fichas (FEATURES) e FeatureBuilder (entra no pipeline).
+    Fase 2 - testes de hipóteses
+    hypotheses    Tabelas em CSV para os testes em R (HypothesisDataExporter).
 
     Fase 3 - seleção de modelos
-    feature_engineering  As 10 features novas e as suas fichas (FeatureEngineer, FEATURE_SPECS).
+    feature_engineering  Features novas: fichas (FEATURES) e FeatureBuilder (entra no pipeline).
 """

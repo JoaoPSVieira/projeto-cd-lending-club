@@ -31,9 +31,24 @@ issue_d:   2007-06 ──────────────────── 
 |---|---|---|
 | Desenvolvimento | 2007-06 a 2014-12 | Treino, validação, EDA, testes de hipóteses, engenharia de features e ajuste (*fit*) de todas as transformações |
 | Teste final | 2015-01 a 2015-12 | Avaliação final dos modelos, **uma única vez**, no fim da Parte 2. Não é usado na EDA nem em nenhuma decisão de modelação |
-| Reservado | 2016-01 a 2018-12 | Não é usado na Parte 1. Os empréstimos de 36 meses destes anos ainda não tinham terminado no cutoff de observação |
+| Reservado | 2016-01 a 2018-12 | Não é usado na Parte 1, em nenhuma tarefa (razões abaixo) |
 
 Os pedidos **rejeitados** seguem os mesmos cortes, usando `Application Date`.
+
+**Porque é que 2016–2018 fica reservado também na regressão.** Na classificação a razão é o
+prazo: os empréstimos de 36 meses destes anos ainda não tinham terminado no cutoff de
+observação, por isso não têm desfecho final. Na regressão essa razão não se aplica, porque
+`int_rate` é conhecido no momento da concessão. O período fica reservado por outras razões:
+
+- **Uma só data de treino simulada para todas as tarefas.** O desenho simula um modelo
+  treinado no início de 2015 e aplicado aos empréstimos de 2015. Os empréstimos de 2016–2018
+  são o futuro desse modelo: não podem entrar no treino, e usá-los também como teste juntaria
+  avaliações a 1, 2 e 3 anos de distância, com mudanças de política de crédito pelo meio.
+- **O mesmo teste final nas duas tarefas supervisionadas.** Avaliar a regressão e a
+  classificação no mesmo ano (2015) torna os resultados comparáveis e mantém a regra de usar
+  o teste final uma única vez.
+- **Um período nunca visto.** Fica intacto para a Parte 2, caso seja preciso avaliar a
+  estabilidade dos modelos em anos mais distantes, sem ter influenciado nenhuma decisão.
 
 ---
 
@@ -78,8 +93,10 @@ tiver chegado ao **fim do prazo** (`issue_d + term`). Assim:
 | 60 meses | Concedidos até 2009-12 | Concedidos em 2015 terminam em 2020 ✘ |
 
 Os empréstimos de 60 meses de 2015 não terminam antes do cutoff de observação. Na
-prática, também não existem empréstimos de 60 meses no período de treino (a verificar na
-limpeza). Por isso, a classificação é definida **apenas para empréstimos de 36 meses**.
+prática, também não existem empréstimos de 60 meses no período de treino: a limpeza
+confirmou que os primeiros são de 2010 (`docs/02_preprocessamento/descricao_dados.md`), e os
+de 2010–2011 só terminam em 2015–2016. Por isso, a classificação é definida **apenas para
+empréstimos de 36 meses**.
 É uma limitação do âmbito do modelo, reconhecida no relatório.
 
 ### 4.3 Partições da classificação
@@ -145,9 +162,16 @@ O teste final e o período reservado **nunca** são usados nestas análises.
 - **Amostragem reprodutível:** quando for preciso trabalhar com amostras (ex.: UMAP, testes
   com amostras grandes), estas são aleatórias, com semente fixa e documentada, e nunca as
   primeiras linhas do ficheiro.
-- **Duplicados:** são detetados pelo `id` do empréstimo na limpeza.
-- **Mutuários repetidos:** seriam identificados por `member_id`; a disponibilidade deste
-  campo é verificada na limpeza. Se não estiver disponível, um mesmo mutuário pode aparecer
-  em partições diferentes, o que é reconhecido como limitação.
+- **Duplicados:** são detetados pelo `id` do empréstimo na limpeza. Resultado: o `id` é
+  único em todo o ficheiro, por isso nenhum empréstimo aparece em duas partições
+  (`docs/02_preprocessamento/duplicados.md`).
+- **Mutuários repetidos:** seriam identificados por `member_id`, mas a limpeza mostrou que
+  este campo está **vazio em todo o ficheiro**. Com uma chave aproximada (data da primeira
+  linha de crédito, código postal, rendimento, emprego e habitação) estima-se que cerca de
+  **0,5%** dos empréstimos do desenvolvimento sejam de mutuários repetidos (2 106 dos 438 729
+  com a chave completa, em 1 049 grupos). É só uma estimativa, provavelmente por baixo, porque a chave muda se algum destes
+  campos mudar entre pedidos. Nada é removido, porque são empréstimos reais. Fica como
+  limitação: o mesmo mutuário pode aparecer no treino e na validação, ou no desenvolvimento e
+  no teste. Uma validação agrupada por mutuário exigiria o `member_id`.
 - **Transformações aprendidas** (imputação, normalização, *encoding*, PCA, etc.) são
   ajustadas apenas no treino de cada *fold*, através de *pipelines*.

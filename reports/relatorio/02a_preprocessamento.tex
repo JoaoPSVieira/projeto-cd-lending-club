@@ -1,4 +1,283 @@
+% Subsecção da Secção "Análise de Dados" (02_analise_dados.tex).
+% Baseado em docs/02_preprocessamento/ do repositório.
+
 \subsection{Pré-processamento}
 \label{sec:preprocessamento}
 
-\textit{[Em preparação.]}
+O pré-processamento seguiu a ordem imposta pelo desenho da Secção~\ref{sec:formulacao}:
+primeiro, apenas regras que não dependem de nenhuma estatística dos dados (remoção de
+linhas estruturais e partição temporal); depois, todas as análises de qualidade e decisões
+de limpeza feitas \textbf{só no período de desenvolvimento}; por fim, as transformações
+aprendidas, ajustadas apenas no treino de cada \textit{fold}. Distinguem-se dois tipos de
+operação: \textbf{regras determinísticas} (conversão de formatos, códigos que significam
+``em falta'', exclusões por regra fixa), que não aprendem nada com os dados e são aplicadas
+da mesma forma ao teste; e \textbf{transformações aprendidas} (imputação, \textit{clipping},
+padronização, \textit{encoding}), que ficam num \textit{pipeline} e nunca veem dados de
+validação ou de teste no ajuste. Todo o código está em classes do pacote
+\texttt{src/lending/}, usadas pelos \textit{notebooks}, e cada exclusão é registada no
+momento em que é feita, de forma que as tabelas de exclusões são geradas e não escritas à
+mão.
+
+% ---------------------------------------------------------------------
+\subsubsection{Ficheiros de origem, schema e unidades}
+
+Os dois ficheiros foram convertidos para \textit{pickle} com todas as colunas lidas como
+texto, para que nenhum tipo fosse adivinhado pelo \textit{pandas}
+(Tabela~\ref{tab:origem}). O tipo de cada uma das 151 colunas do ficheiro de aceites foi
+declarado à mão, a partir do formato dos valores e do dicionário de dados: 112 numéricas,
+17 categóricas, 11 datas no formato ``Mon-AAAA'', 5 de texto livre, 3 indicadores
+\textit{Y/N}, o identificador, o prazo (``36 months'') e os anos de emprego (``< 1 year''
+a ``10+ years'', convertidos em 0 a 10). A conversão é feita por um \textit{parser} que
+dá erro perante um valor com formato inesperado, em vez de o transformar silenciosamente
+em valor em falta; no desenvolvimento, nenhum valor ficou fora do formato. As unidades
+foram confirmadas pelos intervalos observados: as percentagens estão na escala 0--100
+(\texttt{int\_rate} entre 5 e 26), e \texttt{fico\_range\_high} é sempre
+\texttt{fico\_range\_low} mais 4 pontos (mais 5 no escalão 845--850).
+
+\begin{table}[!t]
+\caption{Ficheiros de origem}
+\label{tab:origem}
+\centering
+\footnotesize
+\begin{tabular}{|l|r|r|l|}
+\hline
+\textbf{Ficheiro} & \textbf{Linhas} & \textbf{Col.} & \textbf{Período} \\
+\hline
+\textit{accepted} & 2\,260\,701 & 151 & \texttt{issue\_d} 2007-06 a 2018-12 \\
+\hline
+\textit{rejected} & 27\,648\,741 & 9 & pedido 2007-05 a 2018-12 \\
+\hline
+\end{tabular}
+\end{table}
+
+As datas mais recentes do ficheiro de aceites mostram que a extração foi feita por volta
+de março de 2019 (Secção~\ref{sec:split}). O ficheiro não está por ordem cronológica: é a
+junção de 16 exportações da LendingClub, e começa em 2015.
+
+% ---------------------------------------------------------------------
+\subsubsection{Linhas estruturais e partição temporal}
+
+O ficheiro de aceites tem 33 linhas que não são empréstimos: as duas linhas de totais no
+fim de cada exportação (``\textit{Total amount funded in policy code\ldots}'') e um
+separador (``\textit{Loans that do not meet the credit policy}''), espalhadas pelo meio do
+ficheiro. São identificadas por uma regra estrutural (identificador não numérico e todas
+as outras colunas vazias) e removidas antes da partição. O identificador \texttt{id} é
+único nas restantes 2\,260\,668 linhas. A partição usa os cortes de calendário da
+Secção~\ref{sec:split}: 466\,345 empréstimos no desenvolvimento (2007-06 a 2014-12),
+421\,095 no teste final (2015) e 1\,373\,228 no período reservado (2016--2018). O
+desenvolvimento e o teste ficam guardados à parte, ainda em texto, e o teste só volta a
+ser aberto para receber as mesmas regras de limpeza.
+
+% ---------------------------------------------------------------------
+\subsubsection{Valores em falta}
+
+A análise procurou o \textbf{significado} de cada valor em falta, e não só a sua
+frequência. Distinguem-se cinco casos: ausência de evento (ex.:
+\texttt{mths\_since\_last\_delinq} em falta significa que nunca houve atraso), ausência de
+denominador (ex.: \texttt{revol\_util} sem crédito rotativo), campos que só existem em
+alguns empréstimos (\textit{hardship}, \textit{settlement}), campos só dos pedidos
+conjuntos e campos não registados.
+
+Foram encontrados dois problemas. Primeiro, em 2007--2008, ``nunca aconteceu'' estava
+guardado como 0 em \texttt{mths\_since\_last\_record} e \texttt{mths\_since\_last\_delinq}:
+``0 meses desde o último registo'' é impossível com 0 registos, pelo que 1\,275 e 820
+valores passaram a valor em falta. Segundo, \textbf{37 colunas do \textit{bureau}} só
+começaram a ser registadas em 2012 e estão completas a partir de 2013; estão vazias em todo
+o treino da classificação (2007--2011) e incluem oito das variáveis sugeridas no enunciado.
+Esta constatação levou às decisões descritas na Secção~\ref{sec:split}: a classificação não
+as usa e a regressão é treinada em 2013--2014, onde faltam em menos de 1\% das linhas.
+Além disso, 31 colunas estão totalmente vazias no desenvolvimento, entre elas
+\texttt{member\_id} e as do pedido conjunto, porque não há pedidos conjuntos antes de 2015.
+
+% ---------------------------------------------------------------------
+\subsubsection{Duplicados e mutuários repetidos}
+
+Não há empréstimos duplicados: o \texttt{id} é único, o \texttt{url} é coerente com ele e
+não há linhas repetidas. Os mutuários repetidos, pelo contrário, não podem ser
+identificados, porque \texttt{member\_id} está vazio em todo o ficheiro. Uma chave
+aproximada (data da primeira linha de crédito, código postal, estado, rendimento, emprego e
+situação habitacional) estima que 2\,106 empréstimos (0,48\%), em 1\,049 grupos, sejam de
+pessoas com mais de um empréstimo, com um intervalo mediano de oito meses. Não se remove
+nenhum, por serem empréstimos reais; a consequência --- o mesmo mutuário pode estar no
+treino e na validação --- é uma limitação reconhecida.
+
+% ---------------------------------------------------------------------
+\subsubsection{Valores suspeitos e consistência}
+
+Foram verificadas 22 regras de intervalo e de consistência entre colunas. O critério de
+decisão foi: corrigir apenas quando o valor correto é conhecido ou o valor é um código;
+excluir apenas quando o registo contradiz o que o enunciado pede; nos restantes casos,
+manter e documentar. Daqui resultaram três ações:
+\begin{itemize}
+  \item \textbf{221 empréstimos com condições modificadas} foram excluídos: 139 têm
+  \texttt{int\_rate} = 6,00\% em graus B a G, abaixo da taxa mínima de qualquer desses
+  graus (ex.: um D4 a 6\% quando os D4 do mês tinham 17,14\%), e 203 têm uma prestação que
+  difere em mais de 1~USD da fórmula de amortização. O enunciado pede os valores
+  \textbf{originais} de \texttt{int\_rate} e \texttt{installment}, e \texttt{int\_rate} é o
+  alvo da regressão.
+  \item O valor 9\,999\,999 em \texttt{tot\_hi\_cred\_lim} e \texttt{total\_rev\_hi\_lim} é
+  o teto do campo e não um limite real (3 e 2 valores), pelo que passou a valor em falta.
+  \item Os valores extremos plausíveis (\texttt{revol\_util} até 892\%, coerente com o saldo
+  e o limite; rendimentos de vários milhões) foram mantidos e são tratados no
+  \textit{pipeline}. Pequenas incoerências entre agregados do \textit{bureau} foram
+  documentadas, sem correção, por não se saber qual das colunas está certa.
+\end{itemize}
+
+% ---------------------------------------------------------------------
+\subsubsection{Coortes e tabela de exclusões}
+
+A limpeza é comum a todas as tarefas e produz um conjunto de desenvolvimento com
+466\,124 empréstimos. A partir dele, cada tarefa aplica a sua coorte
+(Tabela~\ref{tab:exclusoes}). Na regressão, os empréstimos de 2007-06 a 2012-12 ficam fora
+do treino, pela razão descrita na Secção~\ref{sec:split}; restam 370\,278 (134\,767 de 2013
+e 235\,511 de 2014). Na classificação, os empréstimos de 60 meses e o embargo de 2012--2014
+deixam 31\,522 empréstimos de 36 meses, todos com o prazo terminado: 27\,646
+\textit{Good standing} (87,7\%) e 3\,876 \textit{Default} (12,3\%). Os passos ``desfecho
+desconhecido'' removem 0 empréstimos no treino, porque todos os \textit{Current} são de 60
+meses. Entre os empréstimos da classificação há 2\,437 ``\textit{Does not meet the credit
+policy}'', que entram pelo seu desfecho e cuja indicação nunca é usada como preditor. O
+clustering de mutuários usa todo o conjunto limpo.
+
+\begin{table}[!t]
+\caption{Tabela de exclusões (ficheiro accepted)}
+\label{tab:exclusoes}
+\centering
+\footnotesize
+\begin{tabular}{|p{0.56\columnwidth}|r|r|}
+\hline
+\textbf{Passo} & \textbf{Removidas} & \textbf{Ficam} \\
+\hline
+Ficheiro original & -- & 2\,260\,701 \\
+\hline
+Linhas que não são empréstimos & 33 & 2\,260\,668 \\
+\hline
+Teste final, 2015 (partição) & 421\,095 & 1\,839\,573 \\
+\hline
+Reservado, 2016--2018 (partição) & 1\,373\,228 & 466\,345 \\
+\hline
+Condições modificadas & 221 & \textbf{466\,124} \\
+\hline
+\multicolumn{3}{|l|}{\textit{Regressão}} \\
+\hline
+Fora de 2013-01 a 2014-12 (partição) & 95\,846 & \textbf{370\,278} \\
+\hline
+\multicolumn{3}{|l|}{\textit{Classificação (treino)}} \\
+\hline
+Prazo de 60 meses & 128\,228 & 337\,896 \\
+\hline
+Embargo 2012--2014 (partição) & 306\,374 & 31\,522 \\
+\hline
+Desfecho desconhecido (\textit{Current}) & 0 & \textbf{31\,522} \\
+\hline
+\multicolumn{3}{|l|}{\textit{Teste final (mesmas regras)}} \\
+\hline
+Empréstimos de 2015 & -- & 421\,095 \\
+\hline
+Condições modificadas & 207 & \textbf{420\,888} \\
+\hline
+\end{tabular}
+\end{table}
+
+% ---------------------------------------------------------------------
+\subsubsection{Teste final}
+
+O teste final recebeu exatamente as mesmas regras de limpeza, pela mesma ordem e sem
+qualquer ajuste: conversão de tipos, zeros que significam ``nunca aconteceu'', exclusão
+das condições modificadas e códigos de teto. Para garantir que são as mesmas, as regras
+foram reunidas numa única classe, aplicada aos dois conjuntos. Antes de a usar no teste,
+verificou-se que, aplicada ao desenvolvimento em texto, a classe reproduz o conjunto limpo
+célula a célula. Do teste só foram registadas as contagens exigidas pela tabela de
+exclusões (Tabela~\ref{tab:exclusoes}); nenhuma estatística ou distribuição foi observada.
+As coortes do teste só são construídas na avaliação final, com as mesmas regras; aí, os
+eventuais empréstimos \textit{At risk} contam como \textit{Default}
+(Secção~\ref{sec:split}).
+
+% ---------------------------------------------------------------------
+\subsubsection{Pedidos rejeitados}
+
+O ficheiro de rejeitados não tem linhas estruturais. Foi partido com os mesmos cortes, pela
+data do pedido: 3\,450\,084 pedidos no desenvolvimento, depois de afastados 49 pedidos de
+maio de 2007 (anteriores ao primeiro empréstimo aceite), 2\,859\,379 de 2015 e
+21\,339\,229 de 2016--2018. As colunas foram convertidas pelo mesmo \textit{parser} e
+renomeadas para o nome da coluna equivalente dos aceites (ex.: \textit{Debt-To-Income
+Ratio}~$\rightarrow$~\texttt{dti}, de ``38.64\%'' para 38,64), para que as comparações entre
+os dois ficheiros sejam diretas. A Tabela~\ref{tab:rejeitados} resume as regras de
+limpeza; o resultado são 3\,424\,228 pedidos.
+
+\begin{table}[!t]
+\caption{Limpeza dos pedidos rejeitados (desenvolvimento)}
+\label{tab:rejeitados}
+\centering
+\footnotesize
+\begin{tabular}{|p{0.38\columnwidth}|r|p{0.32\columnwidth}|}
+\hline
+\textbf{Regra} & \textbf{Linhas} & \textbf{Razão} \\
+\hline
+Excluir \texttt{policy\_code} = 2 & 6\,241 & Produtos não públicos; os aceites são todos 1 \\
+\hline
+Excluir linhas iguais em todas as colunas & 19\,615 & Mesmo pedido submetido várias vezes \\
+\hline
+\texttt{risk\_score} = 0 $\rightarrow$ em falta & 86\,038 & Indicado no enunciado \\
+\hline
+\texttt{dti} = $-1$, 9\,999, 99\,999, 199\,998 $\rightarrow$ em falta & 264\,300 & Códigos, não rácios \\
+\hline
+\texttt{dti} $>$ 1000\% $\rightarrow$ em falta & 8\,253 & Rendimento mal introduzido (ex.: 4042,11\%) \\
+\hline
+Montante = 0 $\rightarrow$ em falta & 2 & Sem montante \\
+\hline
+\end{tabular}
+\end{table}
+
+O DTI acima de 1000\% significaria dívidas mensais superiores a dez vezes o rendimento; os
+valores entre 100\% e 1000\% (cerca de 72\,000) são plausíveis num pedido rejeitado e foram
+mantidos, pelo que as análises do DTI dos rejeitados devem usar estatísticas robustas. O
+achado mais importante é uma \textbf{mudança de escala do \textit{risk score}} a
+2013-11-06: até essa data, os valores vão de cerca de 420 a 850, como o FICO; a partir dela,
+o mínimo passa a 501 e o máximo chega a 990, o intervalo do VantageScore. A mudança
+acontece num dia exato, pelo que reflete uma alteração da pontuação registada e não dos
+requerentes. Como não há conversão exata entre as escalas, os valores não foram alterados e
+foi acrescentada a coluna \texttt{risk\_score\_scale}; a comparação com o FICO dos aceites só
+é válida no período FICO (1\,402\,189 pedidos). Os anos de emprego também não são fiáveis
+a partir de 2010: a proporção de ``< 1 year'' passa de cerca de 27\% para 85\%, o que
+sugere um valor por omissão do formulário. Os pedidos acima do limite da plataforma
+(35\,000~USD; 17\,711 pedidos) foram mantidos, por serem pedidos reais.
+
+% ---------------------------------------------------------------------
+\subsubsection{\textit{Pipeline} de pré-processamento}
+
+As variáveis de cada tarefa são lidas diretamente da tabela de elegibilidade da Secção~\ref{sec:formulacao}:
+entram as elegíveis, exceto as condicionais (geografia, por razões de \textit{fairness}), o
+texto livre e as datas, que só entrarão transformadas, como novas variáveis. Uma verificação
+automática dá erro se alguma coluna proibida pelo enunciado aparecer entre as de uma tarefa.
+Ficam 90 variáveis na regressão, 98 na classificação e 73 no clustering.
+
+As transformações aprendidas estão num \textit{pipeline} do \textit{scikit-learn}, com três
+ramos: (i) montantes em USD: logaritmo, \textit{clipping} aos percentis 0,5\% e 99,5\%,
+imputação pela mediana com indicador de ``em falta'' e padronização; (ii) restantes
+numéricas: os mesmos passos sem logaritmo; (iii) categorias: ``em falta'' como categoria
+própria e \textit{one-hot}, com as categorias abaixo de 0,5\% do treino agrupadas. Em cada
+ramo, as colunas vazias no treino são retiradas (ex.: as 37 colunas do \textit{bureau} no
+treino da classificação). O indicador de ``em falta'' distingue ``não aplicável'' de um
+valor imputado, e o valor imputado nunca é zero.
+
+A validação respeita o tempo, com janela expansível: na regressão, seis \textit{folds}
+trimestrais (o primeiro treina em 2013T1--T2 e valida em 2013T3; o último valida em
+2014T4); na classificação, três \textit{folds} anuais (validação em 2009, 2010 e 2011). O
+\textit{pipeline} é ajustado de novo em cada \textit{fold}, apenas com o treino desse
+\textit{fold}. No primeiro \textit{fold} da regressão verificou-se que a mediana aprendida
+de \texttt{dti} é a do treino (16,98) e não a da validação (16,57), que depois da
+padronização a média é nula no treino mas não na validação, e que voltar a ajustar só com
+o treino produz exatamente a mesma transformação da validação. Na Parte~2, o
+\textit{pipeline} é colocado antes de cada modelo, de forma que o ajuste do
+pré-processamento fique sempre dentro do treino de cada \textit{fold}.
+
+O mesmo tipo de \textit{pipeline} foi também implementado em R com o pacote \texttt{recipes}
+(\texttt{R/pipeline\_pca.Rmd}), em que \texttt{prep} corresponde ao ajuste e \texttt{bake} à
+transformação: logaritmo nas colunas com cauda longa, imputação pela mediana e padronização,
+sobre as 14 variáveis numéricas da classificação usadas na análise exploratória. Nos três
+\textit{folds} anuais da classificação, as mesmas verificações confirmam que os parâmetros vêm
+só do treino (por exemplo, a mediana de \texttt{dti} aprendida no primeiro \textit{fold} é
+12,4, a do treino, e não 12,6, a da validação) e que incluir a validação no ajuste alteraria a
+transformação. Acrescentando um passo de PCA à mesma receita, o R reproduz exatamente o PCA
+feito em Python na análise exploratória (21,6\% da variância na primeira componente e sete
+componentes para 80\%), o que serve de verificação cruzada das duas implementações.

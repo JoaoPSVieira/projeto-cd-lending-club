@@ -119,16 +119,23 @@ enunciado**:
 Os outros 19 *inputs* sugeridos têm no máximo 6,2% em falta no treino da classificação
 (`emp_title`).
 
+**Decisão:** estas 37 colunas **não são usadas na classificação**. O pipeline retira-as
+automaticamente, porque estão vazias no treino (`DropEmptyColumns`, `pipeline.md`).
+
 ### 4.2 Consequência para a regressão
 
-O treino da regressão é 2007–2014. As 37 colunas existem a partir de 2012, mas faltam em
-~15% das linhas (os anos de 2007–2011 e parte de 2012). Na validação cruzada temporal, os
-primeiros *folds* (validação em 2011 ou antes) não as têm de todo.
+No desenho inicial, o treino da regressão era todo o desenvolvimento (2007–2014). Com esse
+período, as 37 colunas faltariam em cerca de 15% das linhas (os anos de 2007–2011 e parte de
+2012). Isto **não é um problema de mutuários individuais, mas do período**: um indicador de
+"em falta" nestas colunas seria, na prática, um indicador do ano de concessão, e a imputação
+inventaria valores para cinco anos inteiros.
 
-A escolha das colunas a usar em cada tarefa (e do tratamento destas lacunas estruturais) é
-feita na seleção de *features* e no pipeline. Fica registado aqui que **não é um problema de
-mutuários individuais, mas do período**, e que um indicador de "em falta" nestas colunas
-seria, na prática, um indicador do ano de concessão.
+**Decisão: a regressão treina só com 2013–2014** (`config.REGRESSION_PARTITIONS`), os anos em
+que as 37 colunas estão completas (no máximo 1% em falta). Os 95 846 empréstimos de 2007-06 a
+2012-12 ficam fora do treino da regressão, num passo de tipo "partição" da tabela de
+exclusões; continuam no conjunto limpo e são usados na EDA geral e no clustering. A validação
+cruzada temporal passa a ser por trimestre (6 *folds*), porque por ano só haveria um. Decisão
+e alternativas em `coortes.md`, secção 4.2, e em `desenho_split.md`, secção 3.
 
 ---
 

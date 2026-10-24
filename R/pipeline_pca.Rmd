@@ -1,0 +1,284 @@
+---
+title: "Pipeline de pré-processamento e PCA em R"
+subtitle: "LendingClub, treino da classificação (2007-06 a 2011-12)"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+# Pasta do projeto (a pasta acima de R/), para os caminhos funcionarem em qualquer computador
+raiz <- normalizePath(file.path(dirname(knitr::current_input(dir = TRUE)), ".."))
+knitr::opts_knit$set(root.dir = raiz)
+knitr::opts_chunk$set(echo = TRUE, comment = "", fig.width = 7, fig.height = 4)
+
+library(data.table)   # leitura rápida do CSV
+library(recipes)      # pipelines de pré-processamento (prep = fit, bake = transform)
+
+SEMENTE <- 42         # a mesma semente do projeto (config.RANDOM_SEED)
+```
+
+# Objetivo
+
+As transformações que aprendem com os dados (imputação, padronização, redução de
+dimensionalidade, etc.) têm de ser ajustadas **só no treino** de cada *fold* da validação
+cruzada e aplicadas à validação **sem novo ajuste**. Em Python, isso é feito pelo pipeline de
+`src/lending/preprocessing.py`. Aqui faz-se o equivalente em R com o pacote `recipes`, onde:
+
+| `recipes` | scikit-learn | O que faz |
+|---|---|---|
+| `recipe()` + `step_*()` | `Pipeline([...])` | Define os passos, sem olhar para os dados |
+| `prep(receita, training = treino)` | `fit(treino)` | Aprende os parâmetros (medianas, médias, desvios-padrão, eixos do PCA) **só com o treino** |
+| `bake(receita_preparada, new_data = validação)` | `transform(validação)` | Aplica os parâmetros aprendidos, **sem os voltar a aprender** |
+
+Há dois tipos de passos:
+
+- **Fixos** (não aprendem nada com os dados): o logaritmo. Dão o mesmo resultado em qualquer
+  conjunto.
+- **Aprendidos**: a imputação pela mediana, a padronização e o PCA. São estes que têm de ser
+  ajustados só no treino de cada *fold*; se a validação entrasse no ajuste, a avaliação ficaria
+  otimista (fuga de informação).
+
+O documento tem duas partes:
+
+1. o pipeline dentro da **validação temporal**, com as provas de que o ajuste só usa o treino;
+2. um **PCA** em R (redução de dimensionalidade linear), com o mesmo pipeline, comparado com o PCA
+   feito em Python na análise exploratória (`notebooks/02_eda.ipynb`).
+
+**Dados:** só o treino da classificação (empréstimos de 36 meses de 2007-06 a 2011-12), exportado
+por `notebooks/02b_dados_testes_hipoteses.ipynb` sem alterar valores. O teste final (2015) nunca
+é usado.
+
+# Dados
+
+Usam-se as mesmas 14 colunas numéricas do PCA da classificação na análise exploratória, para se
+poder comparar o resultado com o do Python.
+
+```{r dados}
+dados <- fread("data/processed/hipoteses/pipeline_classificacao.csv")
+dados[, ano := year(issue_d)]
+
+COLUNAS <- c("loan_amnt", "annual_inc", "dti", "fico_range_low", "revol_util", "revol_bal",
+             "open_acc", "total_acc", "inq_last_6mths", "delinq_2yrs", "pub_rec",
+             "int_rate", "installment", "emp_length")
+# Colunas com cauda longa, em escala log (as mesmas do PCA da análise exploratória)
+COLUNAS_LOG <- c("annual_inc", "revol_bal")
+
+X <- as.data.frame(dados[, ..COLUNAS])
+cat(nrow(X), "empréstimos x", ncol(X), "colunas\n")
+dados[, .N, keyby = ano]
+
+# Valores em falta por coluna: são tratados pela imputação do pipeline
+faltas <- colSums(is.na(X))
+faltas[faltas > 0]
+```
+
+# A receita (o pipeline)
+
+Os mesmos passos do pré-processamento do PCA em Python (`src/lending/dimred.py`):
+
+1. `step_log`: $\log_{10}(1 + x)$ nas colunas com cauda longa (**fixo**);
+2. `step_impute_median`: os valores em falta passam à mediana **do treino** (**aprendido**);
+3. `step_normalize`: subtrai a média e divide pelo desvio-padrão **do treino** (**aprendido**).
+   Sem este passo, as variáveis com números grandes (ex.: o montante) dominariam as distâncias e
+   o PCA só pela escala.
+
+```{r receita}
+receita <- recipe(~ ., data = X) |>
+  step_log(all_of(COLUNAS_LOG), base = 10, offset = 1) |>
+  step_impute_median(all_numeric_predictors()) |>
+  step_normalize(all_numeric_predictors())
+receita
+```
+
+A receita ainda não aprendeu nada: só descreve os passos.
+
+# Validação temporal com o pipeline
+
+Os *folds* são os mesmos da classificação em Python (`ExpandingWindowSplit("Y", min_train_periods = 2)`
+no `notebooks/01c_pipeline.ipynb`): janela expansível por ano, em que cada *fold* treina com todos
+os anos anteriores e valida no ano seguinte. Os empréstimos do mesmo ano ficam sempre juntos.
+
+```{r folds}
+anos_validacao <- 2009:2011
+folds <- lapply(anos_validacao, function(a) list(
+  ano = a,
+  treino = which(dados$ano < a),
+  validacao = which(dados$ano == a)
+))
+data.frame(
+  fold = seq_along(folds),
+  treino = sapply(folds, function(f) paste(min(dados$ano[f$treino]), "a", max(dados$ano[f$treino]))),
+  validacao = sapply(folds, function(f) f$ano),
+  linhas_treino = sapply(folds, function(f) length(f$treino)),
+  linhas_validacao = sapply(folds, function(f) length(f$validacao))
+)
+```
+
+Em cada *fold*, a receita é preparada (`prep`) **só com o treino** e aplicada (`bake`) ao treino e
+à validação. Guardam-se alguns números para provar que o ajuste não viu a validação, usando o
+`dti` como exemplo.
+
+```{r validacao}
+# Valor aprendido para uma coluna num passo da receita preparada
+aprendido <- function(preparada, passo, coluna, estatistica = NULL) {
+  t <- tidy(preparada, number = passo)
+  if (!is.null(estatistica)) t <- t[t$statistic == estatistica, ]
+  t$value[t$terms == coluna]
+}
+
+resultados <- lapply(folds, function(f) {
+  treino <- X[f$treino, ]
+  validacao <- X[f$validacao, ]
+
+  preparada <- prep(receita, training = treino)        # fit: só o treino
+  treino_t <- bake(preparada, new_data = NULL)          # o próprio treino transformado
+  validacao_t <- bake(preparada, new_data = validacao)  # transform: sem novo ajuste
+
+  # Prova 1: preparar outra vez só com o treino dá exatamente a mesma transformação
+  repetida <- bake(prep(receita, training = treino), new_data = validacao)
+  # Contraste: se a validação entrasse no ajuste (fuga de informação), o resultado mudava
+  com_fuga <- bake(prep(receita, training = rbind(treino, validacao)), new_data = validacao)
+
+  data.frame(
+    fold = f$ano,
+    mediana_aprendida = aprendido(preparada, 2, "dti"),
+    mediana_treino = median(treino$dti, na.rm = TRUE),
+    mediana_validacao = median(validacao$dti, na.rm = TRUE),
+    media_aprendida = aprendido(preparada, 3, "dti", "mean"),
+    media_dti_t_treino = mean(treino_t$dti),
+    media_dti_t_validacao = mean(validacao_t$dti),
+    repeticao_igual = isTRUE(all.equal(as.data.frame(repetida), as.data.frame(validacao_t))),
+    diferenca_com_fuga = max(abs(as.matrix(com_fuga) - as.matrix(validacao_t))),
+    faltas_depois = sum(is.na(validacao_t))
+  )
+})
+provas <- do.call(rbind, resultados)
+format(provas, digits = 3)
+```
+
+**Como ler a tabela:**
+
+- **`mediana_aprendida` = `mediana_treino`**, e é diferente de `mediana_validacao`: a imputação
+  aprendeu a mediana só com o treino do *fold*.
+- **`media_aprendida`** é a média do `dti` no treino; depois da padronização, a média é 0 no
+  treino (`media_dti_t_treino`, salvo erros de arredondamento) mas **não** na validação
+  (`media_dti_t_validacao`): a validação foi transformada com os parâmetros do treino e não com
+  os seus.
+- **`repeticao_igual` = TRUE**: preparar de novo só com o treino dá exatamente a mesma
+  transformação da validação, ou seja, o resultado não depende da validação.
+- **`diferenca_com_fuga` > 0**: se a validação entrasse no `prep`, os valores transformados
+  mudavam. É precisamente o que o pipeline evita.
+- **`faltas_depois` = 0**: não ficam valores em falta depois da imputação.
+
+```{r verificacoes, include = FALSE}
+# As mesmas provas como verificações: o documento não é gerado se alguma falhar
+stopifnot(
+  isTRUE(all.equal(provas$mediana_aprendida, provas$mediana_treino)),
+  all(provas$mediana_aprendida != provas$mediana_validacao),
+  all(abs(provas$media_dti_t_treino) < 1e-10),
+  all(abs(provas$media_dti_t_validacao) > 1e-3),
+  all(provas$repeticao_igual),
+  all(provas$diferenca_com_fuga > 0),
+  all(provas$faltas_depois == 0)
+)
+```
+
+Na Parte 2, o modelo entra no fim deste fluxo: em cada *fold*, receita e modelo são ajustados
+juntos só no treino (em R, com um `workflow` do `tidymodels`; em Python, com o `Pipeline`), e
+avaliados na validação.
+
+# PCA em R
+
+O PCA (análise em componentes principais) procura as direções de maior variância dos dados:
+cada componente é uma combinação linear das variáveis padronizadas, e as componentes são
+ordenadas pela variância que explicam. É um passo **aprendido** (os eixos dependem dos dados), por
+isso entra na receita como mais um passo, `step_pca`, a seguir à padronização.
+
+Aqui o PCA é usado como **análise exploratória**, tal como em Python: é ajustado em todo o treino
+da classificação, para descrever a estrutura dos dados. Se fosse usado como entrada de um modelo,
+seria preparado dentro de cada *fold*, como os passos anteriores.
+
+```{r pca}
+receita_pca <- receita |> step_pca(all_numeric_predictors(), num_comp = length(COLUNAS))
+pca <- prep(receita_pca, training = X)
+
+variancia <- tidy(pca, number = 4, type = "variance")
+var_pct <- variancia$value[variancia$terms == "percent variance"]
+var_acum <- variancia$value[variancia$terms == "cumulative percent variance"]
+n_80 <- which(var_acum >= 80)[1]
+
+data.frame(componente = paste0("PC", seq_along(var_pct)),
+           variancia_pct = round(var_pct, 2),
+           acumulada_pct = round(var_acum, 2))[1:8, ]
+cat("Componentes para explicar 80% da variância:", n_80, "\n")
+```
+
+```{r pca-grafico, fig.height = 3.5}
+par(mar = c(4, 4, 2, 1))
+barras <- barplot(var_pct, names.arg = seq_along(var_pct), col = "#2a78d6", border = NA,
+                  ylim = c(0, 100), xlab = "componente principal", ylab = "% da variância",
+                  main = "PCA: variância explicada (treino da classificação)")
+lines(barras, var_acum, type = "b", pch = 19, col = "#eb6834")
+abline(h = 80, lty = 2, col = "#52514e")
+legend("right", c("por componente", "acumulada"), fill = c("#2a78d6", NA), border = NA,
+       col = c(NA, "#eb6834"), lwd = c(NA, 2), pch = c(NA, 19), bty = "n", cex = 0.8)
+```
+
+**O que mede cada componente** (pesos das variáveis nas três primeiras):
+
+```{r pca-pesos}
+pesos <- tidy(pca, number = 4, type = "coef")
+pesos <- dcast(as.data.table(pesos)[component %in% c("PC1", "PC2", "PC3")],
+               terms ~ component, value.var = "value")
+pesos[order(-abs(PC1))][, lapply(.SD, function(v) if (is.numeric(v)) round(v, 3) else v)]
+```
+
+## Comparação com o PCA em Python
+
+Os valores de referência são os do PCA da classificação no `notebooks/02_eda.ipynb`
+(`DimensionalityReducer.explained_variance()`), com as mesmas colunas e os mesmos passos.
+
+```{r pca-comparacao}
+python_pct <- c(21.62, 17.54, 11.60, 9.40, 7.59, 7.20, 6.16, 5.88)
+comparacao <- data.frame(componente = paste0("PC", 1:8),
+                         R = round(var_pct[1:8], 2),
+                         Python = python_pct)
+comparacao$diferenca <- round(comparacao$R - comparacao$Python, 2)
+comparacao
+stopifnot(all(abs(comparacao$diferenca) < 0.01))
+```
+
+**Os resultados são iguais nas duas linguagens:** a mesma variância explicada por componente e
+as mesmas `r n_80` componentes para 80%. Os pesos também coincidem (por exemplo, 0,430 para o
+`loan_amnt` na PC1). Pequenos pormenores de implementação não mudam o resultado:
+
+- o Python divide o desvio-padrão por $n$ e o R por $n - 1$, mas esse fator é igual em todas as
+  colunas e não altera as proporções da variância;
+- o sinal de uma componente é arbitrário (multiplicar uma componente por $-1$ dá a mesma
+  direção), por isso os pesos podem aparecer com o sinal trocado entre implementações.
+
+**Interpretação** (a mesma da análise exploratória): a informação está espalhada por muitas
+direções. São precisas `r n_80` das 14 componentes para explicar 80% da variância, e a primeira
+explica só `r round(var_pct[1], 1)`%. A PC1 resume o **volume do crédito** (montante, prestação,
+rendimento, número de contas e saldo rotativo pesam todos no mesmo sentido), e a PC2 opõe o FICO
+à taxa de juro e à utilização do crédito rotativo, ou seja, mede a **qualidade do crédito**. Não
+há poucas direções que resumam bem os dados, o que sugere manter as variáveis originais nos
+modelos em vez de as substituir por componentes.
+
+# Reprodutibilidade
+
+Para gerar este relatório (a partir da pasta do projeto, depois de correr
+`notebooks/02b_dados_testes_hipoteses.ipynb`):
+
+```
+Rscript -e "rmarkdown::render('R/pipeline_pca.Rmd', output_dir = 'reports')"
+```
+
+Precisa dos pacotes `rmarkdown`, `knitr`, `data.table` e `recipes`, e do pandoc. O PCA e a
+imputação não têm componentes aleatórias, por isso os resultados são sempre os mesmos.
+
+```{r sessao}
+sessionInfo()
+```

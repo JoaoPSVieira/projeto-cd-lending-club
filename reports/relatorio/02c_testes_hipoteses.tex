@@ -1,4 +1,160 @@
+% Subsecção da Secção "Análise de Dados" (02_analise_dados.tex).
+% Baseado em R/testes_hipoteses.Rmd e reports/testes_hipoteses.html do repositório.
+
 \subsection{Testes de hipóteses}
 \label{sec:testes}
 
-\textit{[Em preparação.]}
+% table* ocupa as duas colunas do template IEEE. Fica logo a seguir ao título da secção, porque uma
+% tabela de duas colunas só pode aparecer no topo de uma página seguinte; assim fica perto do texto
+\begin{table*}[!t]
+\caption{Testes de hipóteses (dados de desenvolvimento). p-valores com a correção de Holm; IC a
+95\% por bootstrap; magnitude pelos limiares de Romano et al. (rank-biserial) e de
+Cohen (V de Cramér)}
+\label{tab:hipoteses}
+\centering
+\footnotesize
+\begin{tabular}{|p{0.19\textwidth}|p{0.11\textwidth}|r|l|l|l|}
+\hline
+\textbf{Hipótese} & \textbf{Teste} & \textbf{n} & \textbf{p (Holm)} & \textbf{Efeito [IC 95\%]} & \textbf{Magnitude} \\
+\hline
+DTI maior nos \textit{Default} & Mann-Whitney unilateral & 3\,876 / 27\,646 & $2{,}4 \times 10^{-11}$ & $r_{rb} = 0{,}065$ [0,045; 0,084] & desprezável \\
+\hline
+\texttt{purpose} associado ao \textit{default} & Qui-quadrado & 31\,522 & $< 2{,}2 \times 10^{-16}$ & $V = 0{,}104$ [0,093; 0,118] & pequeno \\
+\hline
+Montante difere entre aceites e rejeitados & Mann-Whitney bilateral & 466\,124 / 3\,424\,226 & $< 2{,}2 \times 10^{-16}$ & $r_{rb} = 0{,}197$ [0,195; 0,198] & pequeno \\
+\hline
+\textit{Risk score} menor nos rejeitados & Mann-Whitney unilateral & 200\,882 / 1\,267\,436 & $< 2{,}2 \times 10^{-16}$ & $r_{rb} = -0{,}614$ [$-0{,}615$; $-0{,}612$] & grande \\
+\hline
+\end{tabular}
+\end{table*}
+
+% Figura de duas colunas, também no início da secção para ficar perto do texto
+\begin{figure*}[!t]
+\centering
+\begin{minipage}[c]{0.49\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{sections/figures/hip_default_por_purpose.png}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.49\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{sections/figures/hip_rejeicao_por_risk_score.png}
+\end{minipage}
+\caption{Testes de hipóteses. Esquerda: taxa de \textit{default} por \texttt{purpose} no treino da
+classificação, com IC 95\%; a cor indica os \textit{purposes} cujo resíduo padronizado passa o
+valor crítico de Bonferroni (laranja: acima da média; azul: abaixo) e a linha vertical é a taxa
+global (12,3\%). Direita: percentagem de pedidos rejeitados nos dados por faixa de
+\textit{risk score}, no período em que a escala dos rejeitados é FICO (2007-06 a 2013-10).}
+\label{fig:hipoteses}
+\end{figure*}
+
+Os testes foram feitos em R (R Markdown, \texttt{R/testes\_hipoteses.Rmd}), apenas com dados de
+desenvolvimento; o teste final de 2015 nunca é usado. As hipóteses sobre o \textit{default}
+usam o treino da classificação (empréstimos de 36 meses de 2007-06 a 2011-12), o único conjunto
+em que o desfecho de cada empréstimo já era observável na data de treino simulada. Como as
+amostras são grandes, diferenças muito pequenas produzem p-valores próximos de zero; as
+conclusões apoiam-se por isso no \textbf{tamanho do efeito} e no seu intervalo de confiança a
+95\%, obtido por \textit{bootstrap} estratificado por grupo (2000 réplicas, percentis). Os dados
+são observacionais: os resultados descrevem associações e não relações causais. Os testes não
+aprendem transformações (usam os valores limpos tal como estão), pelo que dispensam um
+\textit{pipeline}; o \textit{pipeline} em R está descrito na
+Secção~\ref{sec:preprocessamento}.
+
+
+\subsubsection{DTI e \textit{default}}
+
+\textbf{H0:} o DTI tem a mesma distribuição nos empréstimos \textit{Default} e
+\textit{Good standing}, $P(X_{D} > X_{G}) = 0{,}5$. \textbf{HA:} o DTI tende a ser maior nos
+\textit{Default}, $P(X_{D} > X_{G}) > 0{,}5$ (teste unilateral, porque a hipótese tem direção).
+
+Usou-se o teste de Mann-Whitney: compara dois grupos independentes numa variável contínua a
+partir das ordens dos valores, sem exigir normalidade e sem ser dominado por valores extremos.
+Pressupõe observações independentes; a única violação conhecida são os mutuários repetidos,
+estimados em cerca de 0,5\% dos empréstimos. Os empates são tratados pela aproximação normal
+com correção. O tamanho do efeito é a correlação rank-biserial,
+$r_{rb} = P(X_D > X_G) - P(X_D < X_G)$, classificada pelos limiares de Romano et al.~\cite{romano}
+(desprezável abaixo de 0,147).
+
+O teste rejeita H0 ($p = 2{,}4 \times 10^{-11}$; 3\,876 \textit{Default} e 27\,646
+\textit{Good standing}), mas o efeito é desprezável: $r_{rb} = 0{,}065$ (IC 95\% 0,045 a
+0,084). Escolhendo ao acaso um empréstimo de cada classe, o \textit{Default} tem o DTI maior em
+53,3\% dos casos, e a diferença típica (Hodges-Lehmann) é de 0,81 pontos de DTI (IC 95\% 0,57 a
+1,06). A taxa de \textit{default} sobe de forma monótona entre quintis de DTI, de 10,7\% para
+13,9\%. O DTI tem portanto informação sobre o risco, mas sozinho separa mal as classes. Não há
+empréstimos com DTI igual ou superior a 30\%, o que indica um limite da política de crédito: a
+relação observada é a que existe entre os aprovados e pode subestimar a da população de
+requerentes (\textit{selection bias}).
+
+\subsubsection{\textit{Purpose} e \textit{default}}
+
+\textbf{H0:} o \texttt{purpose} e o desfecho são independentes (a taxa de \textit{default} é a
+mesma em todos os \textit{purposes}). \textbf{HA:} não são independentes. Sendo o
+\texttt{purpose} nominal, a alternativa não tem direção.
+
+Usou-se o teste do qui-quadrado de independência, adequado a duas variáveis categóricas
+(14 \textit{purposes} $\times$ 2 classes). Os pressupostos verificam-se: observações
+independentes, cada uma numa só célula, e contagens esperadas de pelo menos 5 em todas as
+células (a menor é 9,7), pelo que não foi preciso agrupar categorias. O tamanho do efeito é o V
+de Cramér, que não cresce com a dimensão da amostra, classificado pelos limiares de Cohen~\cite{cohen}
+(0,1 pequeno; 0,3 médio). Para localizar as diferenças usaram-se os resíduos padronizados
+ajustados, com correção de Bonferroni para as 14 comparações ($|z| > 2{,}91$).
+
+O teste rejeita H0 ($\chi^2 = 338{,}9$, 13 g.l., $p = 1{,}7 \times 10^{-64}$), com um efeito
+pequeno: $V = 0{,}104$ (IC 95\% 0,093 a 0,118). As diferenças entre categorias são, ainda
+assim, grandes: a taxa de \textit{default} vai de 8,4\% (\textit{major\_purchase}) a 24,1\%
+(\textit{small\_business}), para uma taxa global de 12,3\%. O V é pequeno porque 45\% dos
+empréstimos são de \textit{debt\_consolidation}, com uma taxa próxima da média. Têm mais
+\textit{default} do que o esperado \textit{small\_business}, \textit{educational} e
+\textit{other}, e menos \textit{credit\_card}, \textit{major\_purchase} e \textit{car}
+(Fig.~\ref{fig:hipoteses}, à esquerda); as categorias pequenas, como \textit{renewable\_energy} (79 empréstimos), têm intervalos demasiado
+largos para qualquer conclusão. O \texttt{purpose} é assim uma variável útil para os modelos,
+com as categorias raras agrupadas pelo \textit{pipeline}. A associação não é necessariamente
+causal: quem escolhe cada \textit{purpose} tem um perfil diferente (por exemplo, o rendimento
+mais incerto de um pequeno negócio).
+
+\subsubsection{Aceites e rejeitados}
+
+As duas hipóteses seguintes juntam os aceites (466\,124) e os rejeitados (3\,424\,228) do
+desenvolvimento, com colunas de nome e unidade iguais: o montante é \texttt{loan\_amnt} nos
+aceites e \texttt{amount\_requested} nos rejeitados; o \textit{risk score} é o ponto médio do
+intervalo FICO nos aceites e \texttt{risk\_score} nos rejeitados. Ambas usam o teste de
+Mann-Whitney, pelas razões da hipótese do DTI. A comparação tem três limitações: o
+\texttt{loan\_amnt} pode refletir reduções feitas pela LendingClub; a data dos aceites é o mês
+de financiamento e não a do pedido; e, sem identificador do requerente, a mesma pessoa pode ter
+vários pedidos, pelo que os grupos não são totalmente independentes. Com milhões de linhas, o
+\textit{bootstrap} usou 500 réplicas, suficientes para intervalos desta largura.
+
+\textbf{Montante pedido.} H0: o montante tem a mesma distribuição nos dois grupos; HA: as
+distribuições diferem (bilateral, como no enunciado). Usa-se todo o desenvolvimento. O teste
+rejeita H0 ($p < 2{,}2 \times 10^{-16}$) com um efeito pequeno: $r_{rb} = 0{,}197$ (IC 95\%
+0,195 a 0,198); um aceite ao acaso tem um montante maior do que um rejeitado em 59,8\% dos
+casos (medianas de 12\,000 e 10\,000 USD). A diferença está sobretudo nos pedidos pequenos (um
+quarto dos rejeitados pede até 4\,000 USD, contra 8\,000 USD nos aceites), mas os rejeitados
+concentram-se também no máximo: 8,5\% pedem exatamente 35\,000 USD (3,6\% dos aceites) e
+0,47\% pedem mais, um valor que o produto não permitia. O resultado não indica que pedir mais
+aumente a aceitação: os pedidos pequenos rejeitados podem vir de requerentes com outro perfil.
+
+\textbf{\textit{Risk score}.} H0: o \textit{risk score} tem a mesma distribuição nos dois
+grupos; HA: é menor nos rejeitados (unilateral). Nos rejeitados, o \textit{risk score} passa de
+FICO para VantageScore a 2013-11-06, e as duas escalas não são comparáveis; usa-se por isso o
+período de 2007-06 a 2013-10 nos dois grupos (200\,882 aceites e 1\,267\,436 rejeitados com
+\textit{score}). O teste rejeita H0 ($p < 2{,}2 \times 10^{-16}$) com um efeito grande:
+$r_{rb} = -0{,}614$ (IC 95\% $-0{,}615$ a $-0{,}612$); um rejeitado ao acaso tem um
+\textit{score} menor do que um aceite em 80,7\% dos casos (medianas de 650 e 697). A proporção
+de rejeitados nos dados desce com o \textit{score} (Fig.~\ref{fig:hipoteses}, à direita), de
+100\% abaixo de 600 pontos (não há aceites abaixo
+de 612, o que indica um limite mínimo da política de crédito) para 65--69\% acima de 750: mesmo
+com \textit{scores} altos, a maioria dos pedidos é rejeitada, pelo que o \textit{score} não é o
+único critério. Como a LendingClub usa o \textit{score} na decisão, parte do efeito é
+plausivelmente causal, mas o teste mostra apenas a associação, que inclui a de outras variáveis
+relacionadas com o \textit{score}.
+
+\subsubsection{Síntese}
+
+A Tabela~\ref{tab:hipoteses} resume os quatro testes. Os p-valores foram ajustados pela
+correção de Holm~\cite{holm}, que controla a probabilidade de pelo menos um falso positivo no conjunto dos
+quatro testes com mais potência do que a de Bonferroni. Todas as hipóteses nulas são
+rejeitadas, mas os efeitos vão de desprezável (DTI) a grande (\textit{risk score}): com
+amostras desta dimensão, a significância estatística diz pouco sobre a importância prática.
+Para a modelação, nenhuma variável isolada separa bem o \textit{default}, o que sugere modelos
+que combinem várias variáveis e possam captar relações não lineares. Os resultados completos,
+com o código, estão em \texttt{reports/testes\_hipoteses.html}.

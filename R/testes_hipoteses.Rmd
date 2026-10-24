@@ -1,0 +1,772 @@
+---
+title: "Testes de hipóteses"
+subtitle: "LendingClub 2007–2014 (dados de desenvolvimento)"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+# Pasta do projeto (a pasta acima de R/), para os caminhos funcionarem em qualquer computador
+raiz <- normalizePath(file.path(dirname(knitr::current_input(dir = TRUE)), ".."))
+knitr::opts_knit$set(root.dir = raiz)
+knitr::opts_chunk$set(echo = TRUE, comment = "", fig.width = 7, fig.height = 4)
+
+library(data.table)   # leitura rápida dos CSV grandes
+library(boot)         # intervalos de confiança por bootstrap
+
+SEMENTE <- 42         # a mesma semente do projeto (config.RANDOM_SEED)
+ALFA <- 0.05
+B <- 2000             # réplicas do bootstrap
+B_GRANDE <- 500       # réplicas nos testes com milhões de linhas (cada uma demora ~0,5 s)
+```
+
+# Objetivo e regras
+
+Fase 2 do enunciado (*Hypothesis testing*): para cada hipótese, indicar H0 e HA, justificar o
+teste e os seus pressupostos, e interpretar o resultado com o **tamanho do efeito** e a sua
+**incerteza** (intervalo de confiança a 95%). Os dados são observacionais, por isso os
+resultados mostram **associações, não causas**.
+
+- Só dados de **desenvolvimento** (2007-06 a 2014-12). O teste final (2015) nunca é usado.
+- As hipóteses sobre o *default* usam o **treino da classificação** (empréstimos de 36 meses
+  de 2007-06 a 2011-12): é o único conjunto em que o desfecho de cada empréstimo já era
+  conhecido na data de treino simulada.
+- Os dados vêm de `notebooks/02b_dados_testes_hipoteses.ipynb`, que os exporta sem alterar
+  nenhum valor.
+- Não há transformações aprendidas (imputação, escalamento, etc.): os testes usam os valores
+  limpos tal como estão. Por isso não é preciso um *pipeline* em R.
+
+**Tamanho da amostra e p-valores.** Com dezenas de milhares (ou milhões) de linhas, diferenças
+muito pequenas dão p-valores próximos de zero. Um p-valor pequeno diz que a diferença
+provavelmente não é zero, mas não diz se é grande. As conclusões apoiam-se por isso no tamanho
+do efeito e no seu intervalo de confiança.
+
+# Funções auxiliares
+
+**Correlação rank-biserial** ($r_{rb}$). Tamanho do efeito do teste de Mann-Whitney. Se $X$ é
+um valor ao acaso do grupo 1 e $Y$ um valor ao acaso do grupo 2,
+
+$$r_{rb} = P(X > Y) - P(X < Y) = 2 \cdot \frac{U}{n_1 n_2} - 1,$$
+
+onde $U$ é a estatística de Mann-Whitney. Vai de $-1$ a $1$; $0$ quer dizer que nenhum grupo
+tende a ter valores maiores. $U / (n_1 n_2)$ é a AUC: a probabilidade de um valor do grupo 1
+ser maior do que um do grupo 2 (os empates contam meio). É igual ao *delta* de Cliff, por isso
+usam-se os limiares de Romano et al. (2006): $|r| < 0{,}147$ desprezável, $< 0{,}33$ pequeno,
+$< 0{,}474$ médio, e grande a partir daí.
+
+**Intervalo de confiança por bootstrap.** Reamostra-se cada grupo com reposição, mantendo o
+tamanho de cada um (bootstrap estratificado), e calcula-se o efeito em cada réplica. O intervalo a 95% são os
+percentis 2,5% e 97,5% das réplicas. Não exige nenhuma forma para a distribuição do efeito.
+
+**V de Cramér.** Tamanho do efeito do teste do qui-quadrado numa tabela $r \times c$:
+
+$$V = \sqrt{\frac{\chi^2}{n \cdot (\min(r, c) - 1)}}.$$
+
+Vai de 0 (nenhuma associação) a 1 (associação perfeita) e, ao contrário do $\chi^2$, não cresce
+com o tamanho da amostra. Numa tabela com 2 colunas, $\min(r, c) - 1 = 1$, e os limiares de
+Cohen (1988) são 0,1 pequeno, 0,3 médio e 0,5 grande.
+
+```{r funcoes}
+# Correlação rank-biserial: x = valores do grupo 1, y = valores do grupo 2
+rank_biserial <- function(x, y) {
+  n1 <- length(x)
+  n2 <- as.numeric(length(y))               # numérico: n1 * n2 passa o limite dos inteiros
+  r <- frank(c(x, y), ties.method = "average")   # empates recebem a posição média
+  u <- sum(r[seq_len(n1)]) - n1 * (n1 + 1) / 2
+  2 * u / (n1 * n2) - 1
+}
+
+# Intervalo bootstrap (percentis) do rank-biserial. Cada grupo é reamostrado com reposição
+# separadamente, mantendo o seu tamanho (bootstrap estratificado). Feito à mão em vez de
+# boot(), que copia a tabela inteira em cada réplica e fica lento com milhões de linhas.
+ic_rank_biserial <- function(x, y, reps = B) {
+  set.seed(SEMENTE)
+  replicas <- replicate(reps, rank_biserial(x[sample.int(length(x), replace = TRUE)],
+                                            y[sample.int(length(y), replace = TRUE)]))
+  unname(quantile(replicas, c(0.025, 0.975)))
+}
+
+# Classificação do tamanho do efeito (Romano et al., 2006)
+magnitude_rb <- function(r) {
+  cut(abs(r), c(0, 0.147, 0.33, 0.474, 1), include.lowest = TRUE, right = FALSE,
+      labels = c("desprezável", "pequeno", "médio", "grande"))
+}
+
+# V de Cramér a partir de uma tabela de contingência
+cramers_v <- function(tab) {
+  chi2 <- suppressWarnings(chisq.test(tab, correct = FALSE)$statistic)
+  unname(sqrt(chi2 / (sum(tab) * (min(dim(tab)) - 1))))
+}
+
+# Intervalo bootstrap (percentis) do V de Cramér entre duas variáveis categóricas
+ic_cramers_v <- function(x, y, reps = B) {
+  dados <- data.frame(x = x, y = y)
+  estat <- function(d, i) cramers_v(table(d$x[i], d$y[i]))
+  set.seed(SEMENTE)
+  res <- boot(dados, estat, R = reps)
+  boot.ci(res, type = "perc")$percent[4:5]
+}
+
+# Classificação do V numa tabela com 2 colunas (Cohen, 1988)
+magnitude_v <- function(v) {
+  cut(v, c(0, 0.1, 0.3, 0.5, 1), include.lowest = TRUE, right = FALSE,
+      labels = c("desprezável", "pequeno", "médio", "grande"))
+}
+
+# Formatação para o texto: p-valores abaixo da precisão da máquina aparecem como "< 2.2e-16"
+# (o R devolve 0), e montantes sem notação científica
+fmt_p <- function(p) {
+  if (p < .Machine$double.eps) "< 2.2e-16" else paste("=", format(p, digits = 2))
+}
+usd <- function(x) format(unname(x), big.mark = " ", scientific = FALSE)
+
+# Os resultados de cada teste juntam-se aqui, para a tabela final
+resultados <- list()
+```
+
+# Hipótese (a): DTI e *default*
+
+> Enunciado: *"Higher DTI implies higher default risk."*
+
+- **H0:** o DTI tem a mesma distribuição nos empréstimos *Default* e *Good standing*
+  ($P(X_{Default} > X_{Good}) = 0{,}5$).
+- **HA:** o DTI tende a ser **maior** nos *Default* ($P(X_{Default} > X_{Good}) > 0{,}5$).
+  O teste é **unilateral**, porque a hipótese tem uma direção.
+
+```{r a-dados}
+cls <- fread("data/processed/hipoteses/default.csv")
+# A ordem dos níveis define a direção do teste: "greater" quer dizer Default > Good standing
+cls[, target := factor(target, levels = c("Default", "Good standing"))]
+
+cls[, .(n = .N, media = mean(dti), mediana = median(dti),
+        q1 = quantile(dti, 0.25), q3 = quantile(dti, 0.75), max = max(dti)), by = target]
+```
+
+```{r a-graficos, fig.height = 3.5}
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+cores <- c(Default = "#eb6834", "Good standing" = "#2a78d6")   # as cores das figuras da EDA
+
+# Distribuição do DTI em cada classe (densidade)
+dens <- lapply(split(cls$dti, cls$target), density, from = 0, to = 30)
+plot(dens[["Good standing"]], col = cores[["Good standing"]], lwd = 2, main = "DTI por classe",
+     xlab = "DTI (%)", ylab = "densidade", ylim = range(sapply(dens, function(d) d$y)))
+lines(dens[["Default"]], col = cores[["Default"]], lwd = 2)
+legend("bottom", names(cores), col = cores, lwd = 2, bty = "n", cex = 0.8)
+
+# Taxa de default por quintil de DTI (só descritivo)
+quintis <- quantile(cls$dti, 0:5 / 5)
+taxa <- cls[, .(taxa = 100 * mean(target == "Default")),
+            keyby = .(quintil = cut(dti, quintis, include.lowest = TRUE))]
+barplot(taxa$taxa, names.arg = paste0("Q", 1:5), col = cores[["Default"]], border = NA,
+        main = "Default por quintil de DTI", xlab = "quintil de DTI (Q1 = mais baixo)",
+        ylab = "% default")
+```
+
+```{r a-quintis}
+taxa   # limites de cada quintil e taxa de default
+```
+
+**Porquê o teste de Mann-Whitney (Wilcoxon rank-sum).**
+
+- Compara **dois grupos independentes** numa variável **contínua**.
+- Usa as **ordens** dos valores e não os valores, por isso não exige normalidade e não é
+  dominado por valores extremos. É o teste não paramétrico indicado no T03 para este caso.
+- Alternativa rejeitada: o teste *t* de Welch. Com esta amostra seria válido pelo teorema do
+  limite central, mas compara médias, que são mais sensíveis à forma da distribuição.
+  Mann-Whitney responde diretamente à pergunta "os *Default* tendem a ter DTI maior?".
+
+**Pressupostos.**
+
+1. **Observações independentes.** Cada linha é um empréstimo diferente. Limitação: não há
+   identificador do mutuário, e estima-se que ~0,5% dos empréstimos sejam de mutuários
+   repetidos (`docs/02_preprocessamento/duplicados.md`). É uma violação pequena.
+2. **Variável pelo menos ordinal.** O DTI é contínuo (%, com 2 casas decimais).
+3. **Interpretação.** Sem mais pressupostos, o teste compara $P(X > Y)$ com 0,5, que é o que a
+   HA diz. Só seria uma comparação de medianas se as duas distribuições tivessem a mesma forma.
+   As densidades acima têm formas parecidas, por isso a estimativa de Hodges-Lehmann (mediana
+   das diferenças entre pares) pode ler-se como a diferença típica em pontos de DTI.
+4. **Empates.** O DTI tem muitos valores repetidos, por isso o p-valor usa a aproximação normal
+   com correção para empates (`exact = FALSE`).
+
+```{r a-teste}
+teste_a <- wilcox.test(dti ~ target, data = cls, alternative = "greater", exact = FALSE)
+teste_a
+
+# Diferença de Hodges-Lehmann com intervalo bilateral a 95% (a incerteza nos dois sentidos)
+hl_a <- wilcox.test(dti ~ target, data = cls, conf.int = TRUE, exact = FALSE)
+
+x_def <- cls[target == "Default", dti]
+x_good <- cls[target == "Good standing", dti]
+rb_a <- rank_biserial(x_def, x_good)
+ic_a <- ic_rank_biserial(x_def, x_good)
+
+data.frame(
+  medida = c("rank-biserial", "AUC = P(X_Default > X_Good)", "Hodges-Lehmann (pontos de DTI)"),
+  estimativa = round(c(rb_a, (rb_a + 1) / 2, hl_a$estimate), 3),
+  ic95_inf = round(c(ic_a[1], (ic_a[1] + 1) / 2, hl_a$conf.int[1]), 3),
+  ic95_sup = round(c(ic_a[2], (ic_a[2] + 1) / 2, hl_a$conf.int[2]), 3)
+)
+
+resultados$a <- data.frame(
+  hipotese = "(a) DTI maior nos Default",
+  dados = "treino da classificação (2007-06 a 2011-12)",
+  n = sprintf("%d Default / %d Good", length(x_def), length(x_good)),
+  teste = "Mann-Whitney unilateral",
+  p = teste_a$p.value,
+  efeito = "rank-biserial",
+  estimativa = rb_a, ic95_inf = ic_a[1], ic95_sup = ic_a[2],
+  magnitude = as.character(magnitude_rb(rb_a))
+)
+```
+
+**Interpretação.**
+
+- **Rejeita-se H0** ($p$ `r fmt_p(teste_a$p.value)`): nos empréstimos em
+  *Default*, o DTI tende a ser maior.
+- **Mas o efeito é `r magnitude_rb(rb_a)`**: $r_{rb} =$ `r round(rb_a, 3)` (IC 95%
+  `r round(ic_a[1], 3)` a `r round(ic_a[2], 3)`). Escolhendo ao acaso um empréstimo em
+  *Default* e um *Good standing*, o primeiro tem o DTI maior em
+  `r round(100 * (rb_a + 1) / 2, 1)`% dos casos, pouco acima dos 50% que se esperariam sem
+  nenhuma relação. A diferença típica é de `r round(hl_a$estimate, 2)` pontos de DTI
+  (IC 95% `r round(hl_a$conf.int[1], 2)` a `r round(hl_a$conf.int[2], 2)`).
+- O gráfico da direita mostra a mesma relação: a taxa de *default* sobe de forma monótona com o
+  DTI, de `r round(taxa$taxa[1], 1)`% no quintil mais baixo para `r round(taxa$taxa[5], 1)`%
+  no mais alto.
+- **O que significa para os modelos:** o DTI tem informação sobre o risco, mas sozinho separa
+  mal as classes. É de esperar que só seja útil em conjunto com outras variáveis (FICO, taxa de
+  juro, *grade*).
+- **Nota sobre os dados:** o DTI máximo é `r max(cls$dti)`%. Não há nenhum empréstimo com DTI
+  de 30% ou mais, o que indica um limite da política de crédito nestes anos: os requerentes com
+  DTI mais alto foram rejeitados e não estão na amostra. A relação observada é a que existe **entre os aprovados**, e pode ser mais
+  fraca do que na população de requerentes (*selection bias*).
+- **Associação, não causalidade:** um DTI mais alto está associado a mais *default*, mas os
+  dados não mostram que o DTI cause o *default*. Ambos podem depender de outros fatores, como o
+  rendimento ou a situação profissional.
+
+# Hipótese (b): `purpose` e *default*
+
+> Enunciado: *"Loan purpose affects default risk."*
+
+- **H0:** o `purpose` e o desfecho são independentes (a taxa de *default* é a mesma em todos os
+  *purposes*).
+- **HA:** não são independentes (a taxa de *default* difere em pelo menos um *purpose*). Não há
+  direção, porque o `purpose` é uma variável nominal (as categorias não têm ordem).
+
+```{r b-dados}
+tab_b <- table(cls$purpose, cls$target)
+taxa_global <- mean(cls$target == "Default")
+
+# Taxa de default de cada purpose, com intervalo de confiança a 95% (Wilson)
+por_purpose <- data.table(purpose = rownames(tab_b), n = rowSums(tab_b), default = tab_b[, "Default"])
+por_purpose[, taxa := 100 * default / n]
+por_purpose[, c("ic95_inf", "ic95_sup") := {
+  ic <- mapply(function(x, n) prop.test(x, n)$conf.int, default, n)
+  list(100 * ic[1, ], 100 * ic[2, ])
+}]
+setorder(por_purpose, -taxa)
+por_purpose[, lapply(.SD, function(v) if (is.numeric(v)) round(v, 1) else v)]
+```
+
+```{r b-grafico, fig.height = 4.5}
+par(mar = c(4, 9, 2, 1))
+pos <- rev(seq_len(nrow(por_purpose)))   # o purpose com a taxa mais alta fica em cima
+plot(por_purpose$taxa, pos, xlim = range(0, por_purpose$ic95_sup), pch = 19, col = "#eb6834",
+     yaxt = "n", xlab = "% default (IC 95%)", ylab = "", main = "Taxa de default por purpose")
+segments(por_purpose$ic95_inf, pos, por_purpose$ic95_sup, pos, col = "#eb6834")
+axis(2, at = pos, labels = por_purpose$purpose, las = 1, cex.axis = 0.8)
+abline(v = 100 * taxa_global, lty = 2, col = "#52514e")   # taxa de todo o treino
+```
+
+**Porquê o teste do qui-quadrado de independência.**
+
+- Relaciona **duas variáveis categóricas** (`purpose` com 14 categorias e o desfecho com 2).
+- Compara as contagens observadas em cada célula da tabela com as que se esperariam se as duas
+  variáveis fossem independentes: $E_{ij} = \frac{\text{total da linha } i \times \text{total da coluna } j}{n}$.
+  A estatística $\chi^2 = \sum (O - E)^2 / E$ é grande quando as contagens se afastam muito das
+  esperadas.
+- Alternativas rejeitadas: o teste exato de Fisher só é necessário com contagens esperadas
+  pequenas (e é muito pesado numa tabela 14 × 2 com 31 mil linhas); uma regressão logística
+  daria a mesma informação com mais pressupostos.
+
+**Pressupostos.**
+
+1. **Observações independentes**, cada uma numa só célula. Cada linha é um empréstimo diferente
+   (com a mesma ressalva dos ~0,5% de mutuários repetidos).
+2. **Contagens esperadas de pelo menos 5 em todas as células.** Verifica-se abaixo: a menor é
+   `r round(min(suppressWarnings(chisq.test(tab_b))$expected), 1)` (*renewable_energy*), por
+   isso não é preciso juntar categorias.
+3. A correção de continuidade de Yates só se aplica a tabelas 2 × 2, por isso não é usada.
+
+```{r b-teste}
+teste_b <- chisq.test(tab_b)
+teste_b
+cat("Menor contagem esperada:", round(min(teste_b$expected), 1), "\n")
+
+v_b <- cramers_v(tab_b)
+ic_b <- ic_cramers_v(cls$purpose, cls$target)
+data.frame(medida = "V de Cramér", estimativa = round(v_b, 3),
+           ic95_inf = round(ic_b[1], 3), ic95_sup = round(ic_b[2], 3))
+```
+
+**Que *purposes* se afastam da taxa global?** O $\chi^2$ só diz que há diferenças, não onde
+estão. Para isso usam-se os **resíduos padronizados ajustados** da coluna *Default*:
+$(O - E) / \sqrt{E (1 - p_{linha})(1 - p_{coluna})}$, que seguem aproximadamente uma normal
+padrão se H0 for verdade. Positivos querem dizer mais *default* do que o esperado. Como se
+olha para 14 *purposes* ao mesmo tempo, o valor crítico tem a correção de Bonferroni:
+$|z| > z_{1 - 0{,}05 / (2 \times 14)}$.
+
+```{r b-residuos}
+z_critico <- qnorm(1 - ALFA / (2 * nrow(tab_b)))
+residuos <- data.table(purpose = rownames(tab_b), residuo = teste_b$stdres[, "Default"])
+residuos <- merge(por_purpose[, .(purpose, n, taxa)], residuos, by = "purpose")
+residuos[, diferente := ifelse(abs(residuo) > z_critico,
+                               ifelse(residuo > 0, "mais default", "menos default"), "-")]
+setorder(residuos, -residuo)
+cat("Valor crítico (Bonferroni):", round(z_critico, 2), "\n")
+residuos[, .(purpose, n, taxa = round(taxa, 1), residuo = round(residuo, 2), diferente)]
+
+resultados$b <- data.frame(
+  hipotese = "(b) purpose associado ao default",
+  dados = "treino da classificação (2007-06 a 2011-12)",
+  n = sprintf("%d empréstimos, 14 purposes", sum(tab_b)),
+  teste = "Qui-quadrado de independência",
+  p = teste_b$p.value,
+  efeito = "V de Cramér",
+  estimativa = v_b, ic95_inf = ic_b[1], ic95_sup = ic_b[2],
+  magnitude = as.character(magnitude_v(v_b))
+)
+```
+
+```{r b-resumo, include = FALSE}
+mais <- residuos[diferente == "mais default", purpose]
+menos <- residuos[diferente == "menos default", purpose]
+topo <- por_purpose[1]
+fundo <- por_purpose[.N]
+```
+
+**Interpretação.**
+
+- **Rejeita-se H0** ($\chi^2 =$ `r round(teste_b$statistic, 1)`, `r teste_b$parameter` graus de
+  liberdade, $p$ `r fmt_p(teste_b$p.value)`): a taxa de *default* não é a mesma
+  em todos os *purposes*.
+- **O efeito é `r magnitude_v(v_b)`**: $V =$ `r round(v_b, 3)` (IC 95% `r round(ic_b[1], 3)` a
+  `r round(ic_b[2], 3)`).
+- Mesmo assim, as diferenças entre categorias são grandes: a taxa vai de
+  `r round(fundo$taxa, 1)`% (`r fundo$purpose`) a `r round(topo$taxa, 1)`% (`r topo$purpose`),
+  para uma taxa global de `r round(100 * taxa_global, 1)`%. O V é pequeno porque a maior parte
+  dos empréstimos está em *purposes* perto da média (*debt_consolidation* sozinho tem
+  `r round(100 * por_purpose[purpose == "debt_consolidation", n] / nrow(cls))`% do treino), e o
+  V mede a associação no conjunto de todos os empréstimos.
+- Com a correção de Bonferroni, têm **mais *default*** do que o esperado:
+  `r paste(mais, collapse = ", ")`; e **menos *default***: `r paste(menos, collapse = ", ")`.
+  Os restantes não se distinguem da taxa global (*moving* e *wedding* ficam mesmo no limite).
+  Categorias pequenas como *renewable_energy* (`r por_purpose[purpose == "renewable_energy", n]`
+  empréstimos) têm intervalos largos e nada se pode concluir sobre elas.
+- **O que significa para os modelos:** o `purpose` é uma variável útil, sobretudo para separar
+  os casos de *small_business* (risco alto) dos de *credit_card* e *major_purchase* (risco
+  baixo). As categorias raras devem ser agrupadas, como já faz o *pipeline*
+  (`OneHotEncoder` com frequência mínima).
+- **Associação, não causalidade:** o *purpose* é escolhido pelo mutuário, e quem escolhe cada
+  um pode ter um perfil diferente (rendimento, FICO, estabilidade do rendimento). Por exemplo, o
+  risco de *small_business* pode vir da incerteza do rendimento de um negócio e não do
+  *purpose* em si. Os dados não permitem separar estas explicações.
+
+# Hipótese (c): aceites vs rejeitados
+
+> Enunciado: *"Requested amount differs between accepted and rejected applications"* e
+> *"Lower risk score implies higher rejection"*.
+
+Junta-se o ficheiro de aceites ao de rejeitados, ambos do desenvolvimento. As colunas foram
+postas com o mesmo nome e a mesma unidade em `02b_dados_testes_hipoteses.ipynb`:
+
+| Coluna | Aceites | Rejeitados |
+|---|---|---|
+| `amount` (USD) | `loan_amnt` | `amount_requested` |
+| `risk_score` | ponto médio de `fico_range_low` e `fico_range_high` | `risk_score` |
+| `date` | `issue_d` (mês de financiamento) | `application_date` (dia do pedido) |
+
+**Limitações da comparação:**
+
+- O `loan_amnt` dos aceites pode refletir reduções feitas pela LendingClub (dicionário de
+  dados), por isso não é exatamente o montante pedido.
+- A data dos aceites é o mês de financiamento e não a do pedido; os cortes de calendário são
+  por isso aproximados nos aceites.
+- Não há identificador do requerente: a mesma pessoa pode ter vários pedidos rejeitados (só os
+  pedidos exatamente iguais foram retirados na limpeza) ou ter sido rejeitada e aceite mais
+  tarde. Os dois grupos não são por isso totalmente independentes.
+
+```{r c-dados}
+grupos <- fread("data/processed/hipoteses/aceites_rejeitados.csv")
+grupos[, .N, by = group]
+```
+
+## (c1) Montante pedido
+
+- **H0:** o montante pedido tem a mesma distribuição nos aceites e nos rejeitados.
+- **HA:** as distribuições diferem. O teste é **bilateral**, porque o enunciado não indica a
+  direção (*"differs"*).
+- Usa-se todo o desenvolvimento (2007-06 a 2014-12): o montante não depende da escala do
+  *risk score*.
+
+```{r c1-dados}
+montante <- grupos[!is.na(amount),
+                   .(group = factor(group, levels = c("aceite", "rejeitado")), amount)]
+montante[, .(n = .N, q1 = quantile(amount, 0.25), mediana = median(amount), media = mean(amount),
+             q3 = quantile(amount, 0.75), p99 = quantile(amount, 0.99), max = max(amount),
+             acima_35k = sprintf("%.2f%%", 100 * mean(amount > 35000))), by = group]
+```
+
+```{r c1-grafico, fig.height = 3.5}
+cores_g <- c(aceite = "#2a78d6", rejeitado = "#eb6834")
+par(mar = c(4, 4, 2, 1))
+# Só até 40 000 USD, para se ver a forma (acima disso só há uma pequena parte dos rejeitados)
+ate_40k <- montante[amount <= 40000]
+dens_m <- lapply(split(ate_40k$amount, ate_40k$group), density, from = 0, to = 40000, bw = 1000)
+plot(dens_m$aceite, col = cores_g[["aceite"]], lwd = 2, main = "Montante pedido (até 40 000 USD)",
+     xlab = "USD", ylab = "densidade", ylim = range(sapply(dens_m, function(d) d$y)))
+lines(dens_m$rejeitado, col = cores_g[["rejeitado"]], lwd = 2)
+legend("topright", names(cores_g), col = cores_g, lwd = 2, bty = "n", cex = 0.8)
+```
+
+**Porquê o teste de Mann-Whitney.** São dois grupos independentes e uma variável contínua
+muito assimétrica, com valores extremos nos rejeitados (até 1,4 milhões de USD). Um teste
+baseado nas ordens não é afetado por esses extremos, ao contrário de um teste de médias.
+**Pressupostos:** os mesmos da hipótese (a), com a ressalva da independência acima. Há muitos
+empates (montantes redondos), tratados pela aproximação normal com correção.
+
+**Bootstrap com milhões de linhas.** Cada réplica demora cerca de 0,5 s, por isso usam-se
+`r B_GRANDE` réplicas em vez de `r B`. Chega: com estes tamanhos o intervalo é muito estreito
+e a sua 3.ª casa decimal não muda com mais réplicas.
+
+```{r c1-teste}
+teste_c1 <- wilcox.test(amount ~ group, data = montante, exact = FALSE)
+teste_c1
+
+m_aceite <- montante[group == "aceite", amount]
+m_rejeitado <- montante[group == "rejeitado", amount]
+rb_c1 <- rank_biserial(m_aceite, m_rejeitado)
+ic_c1 <- ic_rank_biserial(m_aceite, m_rejeitado, reps = B_GRANDE)
+data.frame(medida = c("rank-biserial (aceite vs rejeitado)", "AUC = P(X_aceite > X_rejeitado)"),
+           estimativa = round(c(rb_c1, (rb_c1 + 1) / 2), 3),
+           ic95_inf = round(c(ic_c1[1], (ic_c1[1] + 1) / 2), 3),
+           ic95_sup = round(c(ic_c1[2], (ic_c1[2] + 1) / 2), 3))
+
+resultados$c1 <- data.frame(
+  hipotese = "(c1) montante difere entre aceites e rejeitados",
+  dados = "aceites e rejeitados (2007-06 a 2014-12)",
+  n = sprintf("%d aceites / %d rejeitados", length(m_aceite), length(m_rejeitado)),
+  teste = "Mann-Whitney bilateral",
+  p = teste_c1$p.value,
+  efeito = "rank-biserial",
+  estimativa = rb_c1, ic95_inf = ic_c1[1], ic95_sup = ic_c1[2],
+  magnitude = as.character(magnitude_rb(rb_c1))
+)
+```
+
+**Interpretação.**
+
+- **Rejeita-se H0** ($p$ `r fmt_p(teste_c1$p.value)`): o montante pedido não tem
+  a mesma distribuição nos dois grupos.
+- **O efeito é `r magnitude_rb(rb_c1)`**: $r_{rb} =$ `r round(rb_c1, 3)` (IC 95%
+  `r round(ic_c1[1], 3)` a `r round(ic_c1[2], 3)`). Os **aceites** tendem a ter montantes
+  **maiores**: um aceite ao acaso tem um montante maior do que um rejeitado ao acaso em
+  `r round(100 * (rb_c1 + 1) / 2, 1)`% dos casos. As medianas são `r usd(median(m_aceite))` USD
+  (aceites) e `r usd(median(m_rejeitado))` USD (rejeitados).
+- A diferença está sobretudo na parte de baixo: um quarto dos rejeitados pede
+  `r usd(quantile(m_rejeitado, 0.25))` USD ou menos, contra `r usd(quantile(m_aceite, 0.25))` USD nos
+  aceites. Na parte de cima, os rejeitados concentram-se no máximo:
+  `r sprintf("%.1f", 100 * mean(m_rejeitado == 35000))`% pedem exatamente 35 000 USD (contra
+  `r sprintf("%.1f", 100 * mean(m_aceite == 35000))`% dos aceites), e
+  `r sprintf("%.2f", 100 * mean(m_rejeitado > 35000))`% pedem mais do que isso, o máximo dos
+  aceites (o limite do produto nestes anos). Esses pedidos nunca podiam ser aceites tal como
+  foram feitos.
+- **Associação, não causalidade:** o resultado não quer dizer que pedir mais aumente a
+  probabilidade de aceitação. Os pedidos pequenos rejeitados podem vir de requerentes com
+  outro perfil (por exemplo, com *risk score* mais baixo), e o montante dos aceites pode ter
+  sido ajustado pela LendingClub.
+
+## (c2) *Risk score*
+
+- **H0:** o *risk score* tem a mesma distribuição nos aceites e nos rejeitados.
+- **HA:** o *risk score* tende a ser **menor** nos rejeitados (teste **unilateral**, como na
+  hipótese do enunciado).
+- **Só de 2007-06 a 2013-10, nos dois grupos.** Nos rejeitados, o *risk score* é FICO até
+  2013-11-05 e VantageScore depois; as duas escalas não são comparáveis. Usa-se o mesmo período
+  de calendário nos dois grupos e só os meses completos antes da mudança.
+
+```{r c2-dados}
+score <- grupos[same_scale_period == TRUE & !is.na(risk_score),
+                .(group = factor(group, levels = c("rejeitado", "aceite")), risk_score)]
+cat("Rejeitados do período sem risk score (ficam de fora):",
+    grupos[same_scale_period == TRUE & group == "rejeitado", sum(is.na(risk_score))], "\n")
+score[, .(n = .N, min = min(risk_score), q1 = quantile(risk_score, 0.25),
+          mediana = median(risk_score), media = mean(risk_score),
+          q3 = quantile(risk_score, 0.75), max = max(risk_score)), by = group]
+```
+
+```{r c2-graficos, fig.height = 3.5}
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+dens_s <- lapply(split(score$risk_score, score$group), density, from = 300, to = 850, bw = 5)
+plot(dens_s$aceite, col = cores_g[["aceite"]], lwd = 2, main = "Risk score (FICO)",
+     xlab = "pontos", ylab = "densidade", ylim = range(sapply(dens_s, function(d) d$y)))
+lines(dens_s$rejeitado, col = cores_g[["rejeitado"]], lwd = 2)
+legend("topleft", names(cores_g), col = cores_g, lwd = 2, bty = "n", cex = 0.8)
+
+# Proporção de rejeitados entre os pedidos de cada faixa de risk score (só descritivo)
+faixas <- c(300, 550, 600, 650, 700, 750, 800, 851)
+por_faixa <- score[, .(aceites = sum(group == "aceite"), rejeitados = sum(group == "rejeitado")),
+                   keyby = .(faixa = cut(risk_score, faixas, right = FALSE, dig.lab = 3))]
+por_faixa[, pct_rejeitados := 100 * rejeitados / (aceites + rejeitados)]
+barplot(por_faixa$pct_rejeitados, names.arg = c("<550", "550", "600", "650", "700", "750", "800+"),
+        col = cores_g[["rejeitado"]], border = NA, main = "Rejeitados por faixa",
+        xlab = "risk score (início da faixa)", ylab = "% rejeitados", ylim = c(0, 100),
+        cex.names = 0.7)
+```
+
+```{r c2-faixas}
+por_faixa[, .(faixa, aceites, rejeitados, pct_rejeitados = round(pct_rejeitados, 1))]
+```
+
+**Teste e pressupostos.** Mann-Whitney, pelas mesmas razões da hipótese (a): dois grupos
+independentes (com a ressalva acima) e uma variável ordinal (o *score* é uma pontuação). As
+formas das distribuições são diferentes, por isso o resultado lê-se como
+$P(X_{rejeitado} < X_{aceite})$ e não como uma diferença de medianas.
+
+```{r c2-teste}
+teste_c2 <- wilcox.test(risk_score ~ group, data = score, alternative = "less", exact = FALSE)
+teste_c2
+
+s_rejeitado <- score[group == "rejeitado", risk_score]
+s_aceite <- score[group == "aceite", risk_score]
+rb_c2 <- rank_biserial(s_rejeitado, s_aceite)
+ic_c2 <- ic_rank_biserial(s_rejeitado, s_aceite, reps = B_GRANDE)
+data.frame(medida = c("rank-biserial (rejeitado vs aceite)", "P(X_rejeitado < X_aceite)"),
+           estimativa = round(c(rb_c2, (1 - rb_c2) / 2), 3),
+           ic95_inf = round(c(ic_c2[1], (1 - ic_c2[2]) / 2), 3),
+           ic95_sup = round(c(ic_c2[2], (1 - ic_c2[1]) / 2), 3))
+
+resultados$c2 <- data.frame(
+  hipotese = "(c2) risk score menor nos rejeitados",
+  dados = "aceites e rejeitados (2007-06 a 2013-10, escala FICO)",
+  n = sprintf("%d aceites / %d rejeitados", length(s_aceite), length(s_rejeitado)),
+  teste = "Mann-Whitney unilateral",
+  p = teste_c2$p.value,
+  efeito = "rank-biserial",
+  estimativa = rb_c2, ic95_inf = ic_c2[1], ic95_sup = ic_c2[2],
+  magnitude = as.character(magnitude_rb(rb_c2))
+)
+```
+
+**Interpretação.**
+
+- **Rejeita-se H0** ($p$ `r fmt_p(teste_c2$p.value)`): os rejeitados tendem a ter
+  um *risk score* menor.
+- **O efeito é `r magnitude_rb(rb_c2)`**: $r_{rb} =$ `r round(rb_c2, 3)` (IC 95%
+  `r round(ic_c2[1], 3)` a `r round(ic_c2[2], 3)`). Um rejeitado ao acaso tem um *score* menor
+  do que um aceite ao acaso em `r round(100 * (1 - rb_c2) / 2, 1)`% dos casos. As medianas são
+  `r median(s_rejeitado)` (rejeitados) e `r median(s_aceite)` (aceites).
+- O gráfico da direita responde diretamente à hipótese do enunciado: a proporção de rejeitados
+  desce à medida que o *score* sobe. Não há nenhum aceite abaixo de `r min(s_aceite)` pontos,
+  o que indica um limite mínimo na política de crédito. Mesmo nas faixas mais altas, mais de
+  metade dos pedidos é rejeitada: o *score* não é o único critério (DTI, montante, historial).
+- **Associação e não causalidade, mesmo aqui.** A LendingClub usa o *score* na decisão, por isso
+  é plausível que parte do efeito seja causal. Mas o teste só mostra a associação: o *score*
+  está também relacionado com outras variáveis usadas na decisão, e os dados não permitem
+  separar o seu efeito próprio.
+
+# Tabela consolidada
+
+**Comparações múltiplas.** Fizeram-se 4 testes. Se cada um usar $\alpha = 0{,}05$, a
+probabilidade de pelo menos um falso positivo no conjunto é maior do que 5%. A **correção de
+Holm** controla essa probabilidade: ordenam-se os p-valores do menor para o maior e o $i$-ésimo
+é comparado com $\alpha / (m - i + 1)$, onde $m = 4$. Dá a mesma garantia que a correção de
+Bonferroni ($\alpha / m$ para todos), mas rejeita mais vezes quando há efeitos reais. Os
+p-valores abaixo já vêm ajustados (`p.adjust(..., method = "holm")`).
+
+```{r tabela}
+tabela <- do.call(rbind, unname(resultados))
+tabela$p_holm <- p.adjust(tabela$p, method = "holm")
+tabela$decisao <- ifelse(tabela$p_holm < ALFA, "rejeita H0", "não rejeita H0")
+
+# p-valores abaixo da precisão da máquina aparecem como "< 2.2e-16"
+fmt_p_tabela <- function(p) {
+  ifelse(p < .Machine$double.eps, "< 2.2e-16", formatC(p, format = "e", digits = 1))
+}
+vista <- data.frame(
+  "Hipótese" = tabela$hipotese,
+  "Dados" = tabela$dados,
+  "n" = tabela$n,
+  "Teste" = tabela$teste,
+  "p (Holm)" = fmt_p_tabela(tabela$p_holm),
+  "Efeito [IC 95%]" = sprintf("%s = %.3f [%.3f; %.3f]", tabela$efeito, tabela$estimativa,
+                              tabela$ic95_inf, tabela$ic95_sup),
+  "Magnitude" = tabela$magnitude,
+  "Decisão" = tabela$decisao,
+  check.names = FALSE
+)
+knitr::kable(vista)
+```
+
+```{r gravar-tabela}
+# A mesma tabela num ficheiro da documentação (gerado, como as tabelas de exclusões)
+destino <- file.path("docs", "02_testes_hipoteses", "tabela_resultados.md")
+dir.create(dirname(destino), showWarnings = FALSE)
+writeLines(c(
+  "# Testes de hipóteses: tabela de resultados",
+  "",
+  "_Gerado automaticamente por `R/testes_hipoteses.Rmd` - não editar à mão._",
+  "",
+  sprintf("- Gerado em: %s", Sys.Date()),
+  "- Só dados de desenvolvimento; o teste final (2015) não é usado.",
+  sprintf("- p-valores com a correção de Holm (%d testes, alfa = %.2f).", nrow(tabela), ALFA),
+  sprintf("- IC 95%% por bootstrap (percentis; %d réplicas, %d nos testes com milhões de linhas; semente %d).",
+          B, B_GRANDE, SEMENTE),
+  "- Magnitude: rank-biserial pelos limiares de Romano et al. (2006); V de Cramér pelos de Cohen (1988).",
+  "- Justificação de cada teste, pressupostos e interpretação: `reports/testes_hipoteses.html`.",
+  "",
+  knitr::kable(vista, format = "pipe")
+), destino, useBytes = TRUE)
+cat("Gravado:", destino, "\n")
+```
+
+# Conclusões
+
+- **As quatro hipóteses rejeitam H0**, mesmo com a correção de Holm. Com amostras deste
+  tamanho isso era de esperar e, sozinho, diz pouco.
+- **Os tamanhos dos efeitos são muito diferentes:**
+  - o *risk score* separa fortemente aceites e rejeitados (efeito grande);
+  - o montante pedido difere pouco entre aceites e rejeitados (efeito pequeno);
+  - o `purpose` está associado ao *default* com um efeito global pequeno, mas com categorias de
+    risco muito diferente (*small_business* quase com o triplo de *major_purchase*);
+  - o DTI quase não separa os *Default* dos *Good standing* (efeito desprezável), apesar de a
+    taxa de *default* subir de forma monótona com o DTI.
+- **Para os modelos da Parte 2:** nenhuma variável isolada separa bem as classes do
+  *default*, por isso é de esperar que os modelos tenham de combinar várias variáveis, e que as
+  não lineares (árvores, *ensembles*) possam ganhar. O `purpose` deve entrar como categoria,
+  com as raras agrupadas.
+- **Limitações comuns:**
+  - *selection bias*: o *default* só se observa nos aceites, e a política de crédito cortou os
+    casos extremos (DTI de 30% ou mais, *score* abaixo de 612);
+  - os dados são observacionais: todas as relações são associações, não causas;
+  - não há identificador do mutuário, por isso a independência das observações é aproximada;
+  - o montante dos aceites pode ter sido ajustado e a sua data é a de financiamento.
+
+# Figuras para o relatório
+
+Duas figuras resumem os resultados mais visuais: a taxa de *default* por `purpose` (hipótese b) e
+a percentagem de pedidos rejeitados por faixa de *risk score* (hipótese c2). Usam os números
+calculados acima e o estilo das figuras da análise exploratória (`src/lending/plot_style.py`:
+fundo, cores e valores escritos ao lado das barras). São gravadas em `reports/figures/`, ao lado
+das figuras da análise exploratória.
+
+```{r figuras-estilo}
+FIGURAS <- file.path("reports", "figures")
+dir.create(FIGURAS, showWarnings = FALSE, recursive = TRUE)
+
+# Cores de src/lending/plot_style.py
+SURFACE <- "#fcfcfb"; INK <- "#0b0b0b"; INK2 <- "#52514e"; MUTED <- "#898781"
+GRID <- "#e1e0d9"; AXIS <- "#c3c2b7"; AZUL <- "#2a78d6"; LARANJA <- "#eb6834"; CINZA <- "#c3c2b7"
+
+milhares <- function(x) format(x, big.mark = ",", scientific = FALSE, trim = TRUE)
+
+# Barras horizontais com o valor escrito à direita e uma linha vertical para a média global.
+# xmax é a largura da área do gráfico (deixa espaço para o texto); eixo é o fim da escala.
+barras_h <- function(rotulos, valores, textos, cores, titulo, xlab, xmax, eixo = xmax,
+                     ic_inf = NULL, ic_sup = NULL, linha = NULL, linha_txt = NULL,
+                     legenda = NULL) {
+  par(mar = c(3.2, 9.5, 2.2, 1), bg = SURFACE, family = "sans", fg = AXIS, col.axis = MUTED,
+      col.lab = INK2, cex.axis = 0.75, mgp = c(2, 0.5, 0), tcl = -0.25)
+  n <- length(valores)
+  y <- rev(seq_len(n))                     # o primeiro valor fica em cima
+  plot(NA, xlim = c(0, xmax), ylim = c(0.4, n + 0.6), xaxt = "n", yaxt = "n", xaxs = "i",
+       bty = "n", xlab = "", ylab = "")
+  marcas <- pretty(c(0, eixo))
+  marcas <- marcas[marcas <= eixo]
+  abline(v = marcas, col = GRID, lwd = 0.6)
+  rect(0, y - 0.35, valores, y + 0.35, col = cores, border = NA)
+  if (!is.null(ic_inf)) segments(ic_inf, y, ic_sup, y, col = INK2, lwd = 1)
+  if (!is.null(linha)) {
+    abline(v = linha, col = MUTED, lwd = 1.2)
+    text(linha, n + 0.6, linha_txt, pos = 4, col = MUTED, cex = 0.7, xpd = TRUE)
+  }
+  pos_texto <- if (is.null(ic_sup)) valores else pmax(valores, ic_sup)
+  text(pos_texto, y, textos, pos = 4, col = INK2, cex = 0.68, xpd = TRUE)
+  axis(1, at = marcas, col = AXIS, col.ticks = AXIS)
+  axis(2, at = y, labels = rotulos, las = 1, col = NA, col.ticks = AXIS)
+  segments(0, 0.4, 0, n + 0.6, col = AXIS)
+  mtext(xlab, side = 1, line = 2, col = INK2, cex = 0.8)
+  mtext(titulo, side = 3, line = 0.8, adj = 0, col = INK, cex = 0.95)
+  if (!is.null(legenda)) legend("bottomright", legenda$texto, fill = legenda$cor, border = NA,
+                                bty = "n", cex = 0.68, text.col = INK2, inset = c(0.01, 0.02))
+}
+
+# Desenha no relatório HTML e grava o mesmo gráfico em PNG (tamanho das figuras do projeto)
+gravar <- function(ficheiro, desenhar) {
+  desenhar()
+  png(file.path(FIGURAS, ficheiro), width = 1185, height = 565, res = 150, bg = SURFACE)
+  desenhar()
+  invisible(dev.off())
+}
+```
+
+```{r figura-purpose, fig.width = 7.9, fig.height = 3.8}
+# Hipótese (b): taxa, IC 95% e resíduo de cada purpose (calculados na secção da hipótese b)
+fig_b <- merge(por_purpose[, .(purpose, n, taxa, ic95_inf, ic95_sup)],
+               residuos[, .(purpose, residuo)], by = "purpose")
+setorder(fig_b, -taxa)
+fig_b[, cor := ifelse(abs(residuo) > z_critico, ifelse(residuo > 0, LARANJA, AZUL), CINZA)]
+
+gravar("hip_default_por_purpose.png", function() barras_h(
+  fig_b$purpose, fig_b$taxa, sprintf("%.1f%%  (n=%s)", fig_b$taxa, milhares(fig_b$n)), fig_b$cor,
+  "Taxa de default por purpose (IC 95%)", "% default", xmax = 32,
+  ic_inf = fig_b$ic95_inf, ic_sup = fig_b$ic95_sup,
+  linha = 100 * taxa_global, linha_txt = sprintf("global %.1f%%", 100 * taxa_global),
+  legenda = list(texto = c("acima da média (Bonferroni)", "abaixo da média", "sem diferença"),
+                 cor = c(LARANJA, AZUL, CINZA))))
+```
+
+```{r figura-risk-score, fig.width = 7.9, fig.height = 3.8}
+# Hipótese (c2): % de rejeitados por faixa de risk score (calculada na secção da hipótese c2)
+rotulos_faixa <- c("< 550", "550-599", "600-649", "650-699", "700-749", "750-799", "800-850")
+total_faixa <- por_faixa$aceites + por_faixa$rejeitados
+rejeicao_global <- 100 * sum(por_faixa$rejeitados) / sum(total_faixa)
+
+gravar("hip_rejeicao_por_risk_score.png", function() barras_h(
+  rotulos_faixa, por_faixa$pct_rejeitados,
+  sprintf("%.1f%%  (n=%s)", por_faixa$pct_rejeitados, milhares(total_faixa)), LARANJA,
+  "Pedidos rejeitados por faixa de risk score (2007-06 a 2013-10)", "% rejeitados",
+  xmax = 125, eixo = 100,
+  linha = rejeicao_global, linha_txt = sprintf("global %.1f%%", rejeicao_global)))
+```
+
+**Como ler as figuras:**
+
+- **Taxa de *default* por `purpose`:** cada barra tem o intervalo de confiança a 95% e a linha
+  vertical é a taxa global. A cor resulta do teste: laranja e azul são os *purposes* cujo resíduo
+  passa o valor crítico de Bonferroni (acima e abaixo da média); cinzento os que não se
+  distinguem dela. O *renewable_energy* tem uma taxa alta mas fica cinzento, porque com 79
+  empréstimos o intervalo é largo; o *other* tem uma taxa mais baixa do que o *moving*, mas fica
+  laranja, porque com 3 522 empréstimos o intervalo é estreito.
+- **Rejeitados por faixa de *risk score*:** a percentagem de pedidos rejeitados **nos dados**
+  em cada faixa (aceites e rejeitados do período FICO). Não é exatamente a probabilidade de um
+  requerente ser rejeitado, porque os aceites são contados pela data de financiamento e os
+  rejeitados pela do pedido, mas mostra a associação: a rejeição é praticamente total abaixo de
+  600 pontos e desce até cerca de 65% nas faixas altas.
+
+# Reprodutibilidade
+
+Para gerar este relatório (a partir da pasta do projeto, depois de correr
+`notebooks/02b_dados_testes_hipoteses.ipynb`):
+
+```
+Rscript -e "rmarkdown::render('R/testes_hipoteses.Rmd', output_dir = 'reports')"
+```
+
+Precisa dos pacotes `rmarkdown`, `knitr`, `data.table` e `boot`, e do pandoc. Todos os
+resultados aleatórios usam a semente `r SEMENTE`.
+
+```{r sessao}
+sessionInfo()
+```

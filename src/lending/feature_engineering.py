@@ -140,6 +140,37 @@ def _issue_year(df):
     return pd.to_datetime(df["issue_d"]).dt.year.astype("float64")
 
 
+def _revol_to_income(df):
+    return safe_ratio(df["revol_bal"], df["annual_inc"])
+
+
+def _open_acc_pct(df):
+    # % das linhas de crédito do historial que ainda estão abertas (0 a 100). Mais contas
+    # abertas do que no total é impossível (2 empréstimos de 2007, valores_suspeitos.md): NaN
+    pct = 100 * safe_ratio(df["open_acc"], df["total_acc"])
+    return pct.where(pct <= 100)
+
+
+def _ever_delinquent(df):
+    # mths_since_last_delinq vazio = nunca houve atraso (os zeros disfarçados de 2007-2008
+    # já passaram a vazio na limpeza); delinq_2yrs só cobre os últimos 2 anos
+    delinq = df["delinq_2yrs"].astype("float64")
+    months = df["mths_since_last_delinq"]
+    flag = ((delinq > 0) | months.notna()).astype("float64")
+    # Sem nenhuma das duas não se sabe: NaN (não 0)
+    return flag.where(delinq.notna() | months.notna())
+
+
+def _has_public_record(df):
+    pub_rec = df["pub_rec"].astype("float64")
+    return (pub_rec > 0).astype("float64").where(pub_rec.notna())
+
+
+def _total_credit_util(df):
+    # Saldo de todas as linhas de crédito em % do limite total (0 a 100; pode passar 100)
+    return 100 * safe_ratio(df["tot_cur_bal"], df["tot_hi_cred_lim"])
+
+
 # =========================
 # = Catálogo das features =
 # =========================
@@ -217,7 +248,93 @@ FEATURES = [
         compute=_issue_year,
         author="João",
     ),
-    # COLOCAR AQUI AS OUTRAS 5
+    FeatureSpec(
+        name="revol_to_income",
+        sources=("revol_bal", "annual_inc"),
+        formula="revol_bal / annual_inc",
+        rationale="Saldo em crédito rotativo (cartões) face ao rendimento: o revol_util mede a "
+                  "parte do limite usada, mas não diz se a dívida é grande para o rendimento. "
+                  "No treino da classificação, o quintil mais alto tem 14,9% de default contra "
+                  "cerca de 11,3% nos três primeiros; a correlação com o revol_util (ρ = 0,34) e "
+                  "com o dti (ρ = 0,40) é moderada, por isso acrescenta informação.",
+        missing="NaN se revol_bal faltar ou se annual_inc faltar ou for <= 0 (sem divisão por "
+                "zero); depois, imputação pela mediana do treino + indicador no pipeline.",
+        moment="T0",
+        tasks=("regression", "classification", "clustering"),
+        compute=_revol_to_income,
+        author="Rodrigo",
+    ),
+    FeatureSpec(
+        name="open_acc_pct",
+        sources=("open_acc", "total_acc"),
+        formula="100 × open_acc / total_acc",
+        rationale="Parte do historial de crédito que continua aberta: o mesmo número de contas "
+                  "abertas significa coisas diferentes para quem teve 5 ou 50 contas. Uma "
+                  "percentagem alta indica crédito recente ou acumulado. No treino da "
+                  "classificação, o quintil mais alto tem 15,5% de default contra 10,5% a 12,1% "
+                  "nos outros (relação não linear); a correlação com o open_acc é só ρ = 0,26.",
+        missing="NaN se alguma das colunas faltar, se total_acc for <= 0 ou se open_acc for "
+                "maior do que total_acc (caso impossível: 2 empréstimos de 2007); imputação "
+                "pela mediana do treino + indicador no pipeline.",
+        moment="T0",
+        tasks=("regression", "classification", "clustering"),
+        compute=_open_acc_pct,
+        author="Rodrigo",
+    ),
+    FeatureSpec(
+        name="ever_delinquent",
+        sources=("delinq_2yrs", "mths_since_last_delinq"),
+        formula="1 se delinq_2yrs > 0 ou mths_since_last_delinq preenchido; senão 0",
+        rationale="Indica se o mutuário já teve algum atraso de pagamento. O delinq_2yrs só conta "
+                  "os últimos 2 anos e o mths_since_last_delinq vazio quer dizer \"nunca\", por "
+                  "isso juntar as duas colunas dá o historial completo num valor simples, sem o "
+                  "problema de um vazio que significa ausência de evento. 48% dos empréstimos "
+                  "da regressão têm 1; no treino da classificação o default é 13,5% com atraso e "
+                  "11,7% sem.",
+        missing="NaN só se as duas colunas faltarem (não se sabe se houve atraso); "
+                "mths_since_last_delinq vazio sozinho significa \"nunca\" e dá 0. Os NaN são "
+                "imputados pela mediana do treino + indicador no pipeline.",
+        moment="T0",
+        tasks=("regression", "classification", "clustering"),
+        compute=_ever_delinquent,
+        author="Rodrigo",
+    ),
+    FeatureSpec(
+        name="has_public_record",
+        sources=("pub_rec",),
+        formula="1 se pub_rec > 0; senão 0",
+        rationale="Indica se o mutuário tem algum registo público negativo (ex.: falência, "
+                  "penhora). A contagem tem uma cauda longa e quase todos têm 0, por isso a "
+                  "diferença que importa é entre 0 e pelo menos 1. No treino da classificação, "
+                  "o default é 19,9% com registo e 11,9% sem; na regressão, a taxa média é "
+                  "14,70% contra 13,93%.",
+        missing="NaN se pub_rec faltar; imputação pela mediana do treino + indicador.",
+        moment="T0",
+        tasks=("regression", "classification", "clustering"),
+        compute=_has_public_record,
+        author="Rodrigo",
+    ),
+    FeatureSpec(
+        name="total_credit_util",
+        sources=("tot_cur_bal", "tot_hi_cred_lim"),
+        formula="100 × tot_cur_bal / tot_hi_cred_lim",
+        rationale="Utilização de todo o crédito (cartões, empréstimos e hipotecas), e não só do "
+                  "rotativo como o revol_util: mede quanto do crédito total ainda está em dívida. "
+                  "Na regressão, é a feature nova com mais relação com a taxa a seguir ao "
+                  "loan_to_income (ρ = 0,11 com o int_rate), e a correlação com o revol_util é "
+                  "só ρ = 0,39.",
+        missing="NaN se alguma das colunas faltar ou se tot_hi_cred_lim for <= 0 (15 casos na "
+                "regressão); imputação pela mediana do treino + indicador. Valores acima de 100% "
+                "(saldo acima do limite, 5 536 casos) ficam; o clipping aos "
+                "percentis do treino limita os extremos.",
+        moment="T0",
+        # As duas colunas são das 37 do bureau que só existem a partir de 2012
+        # (valores_em_falta.md, secção 4): vazias no treino da classificação (2007-2011) e em
+        # 2007-2012 no clustering. Por isso só entra na regressão (treino 2013-2014)
+        tasks=("regression",),
+        compute=_total_credit_util,
+        author="Rodrigo",
+    ),
 ]
 
 
