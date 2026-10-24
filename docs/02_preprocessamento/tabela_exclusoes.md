@@ -2,7 +2,7 @@
 
 _Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` - não editar à mão._
 
-- Gerado em: 2026-10-17
+- Gerado em: 2026-10-24
 - Tipo "remoção": as linhas deixam de existir. Tipo "partição": as linhas são válidas mas ficam à parte (ex.: teste final, embargo).
 - Decisões e justificações: `docs/02_preprocessamento/` e `docs/01_formulacao_problema/`.
 
