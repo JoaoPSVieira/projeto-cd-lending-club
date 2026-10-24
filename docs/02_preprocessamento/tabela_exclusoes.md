@@ -12,7 +12,7 @@ _Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` - não editar 
 |---:|---|---|---|---|---:|---:|---:|
 | 1 | Linhas que não são empréstimos | remoção | id não numérico e todas as outras colunas vazias | Totais e separadores das exportações da LendingClub, não são empréstimos | 2,260,701 | 33 | 2,260,668 |
 | 2 | Separar o teste final | partição | issue_d de 2015-01 a 2015-12 | Teste final cronológico, guardado à parte para a avaliação final (desenho_split.md) | 2,260,668 | 421,095 | 1,839,573 |
-| 3 | Separar o período reservado | partição | issue_d de 2016-01 a 2018-12 | Não usado na Parte 1: os empréstimos de 36 meses ainda não tinham terminado em 2018-12 | 1,839,573 | 1,373,228 | 466,345 |
+| 3 | Separar o período reservado | partição | issue_d de 2016-01 a 2018-12 | Não usado na Parte 1, em nenhuma tarefa: é o futuro da data de treino simulada (01/01/2015) e o teste final é só 2015 (desenho_split.md) | 1,839,573 | 1,373,228 | 466,345 |
 | 4 | Condições modificadas depois da concessão | remoção | int_rate = 6.00 num grau B a G, ou \|installment - fórmula de amortização\| > 1 USD | Taxa ou prestação alteradas depois da concessão; o enunciado pede os valores originais | 466,345 | 221 | 466,124 |
 
 **Linhas finais: 466,124**
@@ -23,7 +23,7 @@ _Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` - não editar 
 |---:|---|---|---|---|---:|---:|---:|
 | 1 | Linhas que não são empréstimos | remoção | id não numérico e todas as outras colunas vazias | Totais e separadores das exportações da LendingClub, não são empréstimos | 2,260,701 | 33 | 2,260,668 |
 | 2 | Separar o teste final | partição | issue_d de 2015-01 a 2015-12 | Teste final cronológico, guardado à parte para a avaliação final (desenho_split.md) | 2,260,668 | 421,095 | 1,839,573 |
-| 3 | Separar o período reservado | partição | issue_d de 2016-01 a 2018-12 | Não usado na Parte 1: os empréstimos de 36 meses ainda não tinham terminado em 2018-12 | 1,839,573 | 1,373,228 | 466,345 |
+| 3 | Separar o período reservado | partição | issue_d de 2016-01 a 2018-12 | Não usado na Parte 1, em nenhuma tarefa: é o futuro da data de treino simulada (01/01/2015) e o teste final é só 2015 (desenho_split.md) | 1,839,573 | 1,373,228 | 466,345 |
 | 4 | Condições modificadas depois da concessão | remoção | int_rate = 6.00 num grau B a G, ou \|installment - fórmula de amortização\| > 1 USD | Taxa ou prestação alteradas depois da concessão; o enunciado pede os valores originais | 466,345 | 221 | 466,124 |
 | 5 | Fora do período de train da regressão | partição | issue_d fora de 2013-01 a 2014-12 | Antes de 2013 faltam as 37 colunas do bureau registadas só a partir de 2012 (decisão do grupo, valores_em_falta.md) | 466,124 | 95,846 | 370,278 |
 | 6 | Sem taxa de juro | remoção | int_rate em falta | int_rate é o alvo da regressão | 370,278 | 0 | 370,278 |
@@ -36,7 +36,7 @@ _Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` - não editar 
 |---:|---|---|---|---|---:|---:|---:|
 | 1 | Linhas que não são empréstimos | remoção | id não numérico e todas as outras colunas vazias | Totais e separadores das exportações da LendingClub, não são empréstimos | 2,260,701 | 33 | 2,260,668 |
 | 2 | Separar o teste final | partição | issue_d de 2015-01 a 2015-12 | Teste final cronológico, guardado à parte para a avaliação final (desenho_split.md) | 2,260,668 | 421,095 | 1,839,573 |
-| 3 | Separar o período reservado | partição | issue_d de 2016-01 a 2018-12 | Não usado na Parte 1: os empréstimos de 36 meses ainda não tinham terminado em 2018-12 | 1,839,573 | 1,373,228 | 466,345 |
+| 3 | Separar o período reservado | partição | issue_d de 2016-01 a 2018-12 | Não usado na Parte 1, em nenhuma tarefa: é o futuro da data de treino simulada (01/01/2015) e o teste final é só 2015 (desenho_split.md) | 1,839,573 | 1,373,228 | 466,345 |
 | 4 | Condições modificadas depois da concessão | remoção | int_rate = 6.00 num grau B a G, ou \|installment - fórmula de amortização\| > 1 USD | Taxa ou prestação alteradas depois da concessão; o enunciado pede os valores originais | 466,345 | 221 | 466,124 |
 | 5 | Prazo de 60 meses | remoção | term != 36 | Não terminam a tempo de o desfecho ser observado (classificação só para 36 meses, desenho_split.md) | 466,124 | 128,228 | 337,896 |
 | 6 | Fora do período de train | partição | issue_d fora de 2007-06 a 2011-12 | Embargo: em 01/01/2015 o prazo ainda não tinha terminado, o rótulo não era observável na data de treino simulada | 337,896 | 306,374 | 31,522 |
@@ -50,7 +50,7 @@ _Gerado automaticamente por `notebooks/01_preprocessamento.ipynb` - não editar 
 |---:|---|---|---|---|---:|---:|---:|
 | 1 | Linhas que não são empréstimos | remoção | id não numérico e todas as outras colunas vazias | Totais e separadores das exportações da LendingClub, não são empréstimos | 2,260,701 | 33 | 2,260,668 |
 | 2 | Separar o teste final | partição | issue_d de 2015-01 a 2015-12 | Teste final cronológico, guardado à parte para a avaliação final (desenho_split.md) | 2,260,668 | 421,095 | 1,839,573 |
-| 3 | Separar o período reservado | partição | issue_d de 2016-01 a 2018-12 | Não usado na Parte 1: os empréstimos de 36 meses ainda não tinham terminado em 2018-12 | 1,839,573 | 1,373,228 | 466,345 |
+| 3 | Separar o período reservado | partição | issue_d de 2016-01 a 2018-12 | Não usado na Parte 1, em nenhuma tarefa: é o futuro da data de treino simulada (01/01/2015) e o teste final é só 2015 (desenho_split.md) | 1,839,573 | 1,373,228 | 466,345 |
 | 4 | Condições modificadas depois da concessão | remoção | int_rate = 6.00 num grau B a G, ou \|installment - fórmula de amortização\| > 1 USD | Taxa ou prestação alteradas depois da concessão; o enunciado pede os valores originais | 466,345 | 221 | 466,124 |
 | 5 | Coorte do clustering de mutuários | remoção | nenhum filtro adicional | Usa todos os empréstimos do desenvolvimento (coorte_alvo.md) | 466,124 | 0 | 466,124 |
 

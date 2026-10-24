@@ -174,5 +174,5 @@ regressão) **continuam nos ficheiros e nunca podem entrar como preditores**.
 As coortes continuam a ser definidas num só sítio, o `CohortBuilder`. Os ficheiros são o
 resultado de o aplicar e regeneram-se correndo o notebook.
 
-O teste final limpo (`teste_2015.pkl`) está descrito em `teste_final.md`. Ainda não gerado
-(passo seguinte): `rejeitados_dev.pkl` (pedidos rejeitados).
+O teste final limpo (`teste_2015.pkl`) está descrito em `teste_final.md`, e os pedidos
+rejeitados do desenvolvimento (`rejeitados_dev.pkl`) em `rejeitados.md`.
