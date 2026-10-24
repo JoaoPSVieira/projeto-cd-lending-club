@@ -19,6 +19,7 @@ library(boot)         # intervalos de confiança por bootstrap
 SEMENTE <- 42         # a mesma semente do projeto (config.RANDOM_SEED)
 ALFA <- 0.05
 B <- 2000             # réplicas do bootstrap
+B_GRANDE <- 500       # réplicas nos testes com milhões de linhas (cada uma demora ~0,5 s)
 ```
 
 # Objetivo e regras
@@ -56,7 +57,7 @@ usam-se os limiares de Romano et al. (2006): $|r| < 0{,}147$ desprezável, $< 0{
 $< 0{,}474$ médio, e grande a partir daí.
 
 **Intervalo de confiança por bootstrap.** Reamostra-se cada grupo com reposição, mantendo o
-tamanho de cada um (`strata`), e calcula-se o efeito em cada réplica. O intervalo a 95% são os
+tamanho de cada um (bootstrap estratificado), e calcula-se o efeito em cada réplica. O intervalo a 95% são os
 percentis 2,5% e 97,5% das réplicas. Não exige nenhuma forma para a distribuição do efeito.
 
 **V de Cramér.** Tamanho do efeito do teste do qui-quadrado numa tabela $r \times c$:
@@ -71,22 +72,20 @@ Cohen (1988) são 0,1 pequeno, 0,3 médio e 0,5 grande.
 # Correlação rank-biserial: x = valores do grupo 1, y = valores do grupo 2
 rank_biserial <- function(x, y) {
   n1 <- length(x)
-  n2 <- length(y)
-  r <- rank(c(x, y))                        # empates recebem a posição média
+  n2 <- as.numeric(length(y))               # numérico: n1 * n2 passa o limite dos inteiros
+  r <- frank(c(x, y), ties.method = "average")   # empates recebem a posição média
   u <- sum(r[seq_len(n1)]) - n1 * (n1 + 1) / 2
   2 * u / (n1 * n2) - 1
 }
 
-# Intervalo bootstrap (percentis) do rank-biserial entre os grupos g1 e g2 de `valores`
-ic_rank_biserial <- function(valores, grupo, g1, g2, reps = B) {
-  dados <- data.frame(v = valores, g = grupo)
-  estat <- function(d, i) {
-    d <- d[i, ]
-    rank_biserial(d$v[d$g == g1], d$v[d$g == g2])
-  }
+# Intervalo bootstrap (percentis) do rank-biserial. Cada grupo é reamostrado com reposição
+# separadamente, mantendo o seu tamanho (bootstrap estratificado). Feito à mão em vez de
+# boot(), que copia a tabela inteira em cada réplica e fica lento com milhões de linhas.
+ic_rank_biserial <- function(x, y, reps = B) {
   set.seed(SEMENTE)
-  res <- boot(dados, estat, R = reps, strata = factor(dados$g))
-  boot.ci(res, type = "perc")$percent[4:5]
+  replicas <- replicate(reps, rank_biserial(x[sample.int(length(x), replace = TRUE)],
+                                            y[sample.int(length(y), replace = TRUE)]))
+  unname(quantile(replicas, c(0.025, 0.975)))
 }
 
 # Classificação do tamanho do efeito (Romano et al., 2006)
@@ -115,6 +114,13 @@ magnitude_v <- function(v) {
   cut(v, c(0, 0.1, 0.3, 0.5, 1), include.lowest = TRUE, right = FALSE,
       labels = c("desprezável", "pequeno", "médio", "grande"))
 }
+
+# Formatação para o texto: p-valores abaixo da precisão da máquina aparecem como "< 2.2e-16"
+# (o R devolve 0), e montantes sem notação científica
+fmt_p <- function(p) {
+  if (p < .Machine$double.eps) "< 2.2e-16" else paste("=", format(p, digits = 2))
+}
+usd <- function(x) format(unname(x), big.mark = " ", scientific = FALSE)
 
 # Os resultados de cada teste juntam-se aqui, para a tabela final
 resultados <- list()
@@ -194,7 +200,7 @@ hl_a <- wilcox.test(dti ~ target, data = cls, conf.int = TRUE, exact = FALSE)
 x_def <- cls[target == "Default", dti]
 x_good <- cls[target == "Good standing", dti]
 rb_a <- rank_biserial(x_def, x_good)
-ic_a <- ic_rank_biserial(cls$dti, cls$target, "Default", "Good standing")
+ic_a <- ic_rank_biserial(x_def, x_good)
 
 data.frame(
   medida = c("rank-biserial", "AUC = P(X_Default > X_Good)", "Hodges-Lehmann (pontos de DTI)"),
@@ -217,7 +223,7 @@ resultados$a <- data.frame(
 
 **Interpretação.**
 
-- **Rejeita-se H0** ($p =$ `r format(teste_a$p.value, digits = 2)`): nos empréstimos em
+- **Rejeita-se H0** ($p$ `r fmt_p(teste_a$p.value)`): nos empréstimos em
   *Default*, o DTI tende a ser maior.
 - **Mas o efeito é `r magnitude_rb(rb_a)`**: $r_{rb} =$ `r round(rb_a, 3)` (IC 95%
   `r round(ic_a[1], 3)` a `r round(ic_a[2], 3)`). Escolhendo ao acaso um empréstimo em
@@ -343,7 +349,7 @@ fundo <- por_purpose[.N]
 **Interpretação.**
 
 - **Rejeita-se H0** ($\chi^2 =$ `r round(teste_b$statistic, 1)`, `r teste_b$parameter` graus de
-  liberdade, $p =$ `r format(teste_b$p.value, digits = 2)`): a taxa de *default* não é a mesma
+  liberdade, $p$ `r fmt_p(teste_b$p.value)`): a taxa de *default* não é a mesma
   em todos os *purposes*.
 - **O efeito é `r magnitude_v(v_b)`**: $V =$ `r round(v_b, 3)` (IC 95% `r round(ic_b[1], 3)` a
   `r round(ic_b[2], 3)`).
@@ -366,3 +372,206 @@ fundo <- por_purpose[.N]
   um pode ter um perfil diferente (rendimento, FICO, estabilidade do rendimento). Por exemplo, o
   risco de *small_business* pode vir da incerteza do rendimento de um negócio e não do
   *purpose* em si. Os dados não permitem separar estas explicações.
+
+# Hipótese (c): aceites vs rejeitados
+
+> Enunciado: *"Requested amount differs between accepted and rejected applications"* e
+> *"Lower risk score implies higher rejection"*.
+
+Junta-se o ficheiro de aceites ao de rejeitados, ambos do desenvolvimento. As colunas foram
+postas com o mesmo nome e a mesma unidade em `02b_dados_testes_hipoteses.ipynb`:
+
+| Coluna | Aceites | Rejeitados |
+|---|---|---|
+| `amount` (USD) | `loan_amnt` | `amount_requested` |
+| `risk_score` | ponto médio de `fico_range_low` e `fico_range_high` | `risk_score` |
+| `date` | `issue_d` (mês de financiamento) | `application_date` (dia do pedido) |
+
+**Limitações da comparação:**
+
+- O `loan_amnt` dos aceites pode refletir reduções feitas pela LendingClub (dicionário de
+  dados), por isso não é exatamente o montante pedido.
+- A data dos aceites é o mês de financiamento e não a do pedido; os cortes de calendário são
+  por isso aproximados nos aceites.
+- Não há identificador do requerente: a mesma pessoa pode ter vários pedidos rejeitados (só os
+  pedidos exatamente iguais foram retirados na limpeza) ou ter sido rejeitada e aceite mais
+  tarde. Os dois grupos não são por isso totalmente independentes.
+
+```{r c-dados}
+grupos <- fread("data/processed/hipoteses/aceites_rejeitados.csv")
+grupos[, .N, by = group]
+```
+
+## (c1) Montante pedido
+
+- **H0:** o montante pedido tem a mesma distribuição nos aceites e nos rejeitados.
+- **HA:** as distribuições diferem. O teste é **bilateral**, porque o enunciado não indica a
+  direção (*"differs"*).
+- Usa-se todo o desenvolvimento (2007-06 a 2014-12): o montante não depende da escala do
+  *risk score*.
+
+```{r c1-dados}
+montante <- grupos[!is.na(amount),
+                   .(group = factor(group, levels = c("aceite", "rejeitado")), amount)]
+montante[, .(n = .N, q1 = quantile(amount, 0.25), mediana = median(amount), media = mean(amount),
+             q3 = quantile(amount, 0.75), p99 = quantile(amount, 0.99), max = max(amount),
+             acima_35k = sprintf("%.2f%%", 100 * mean(amount > 35000))), by = group]
+```
+
+```{r c1-grafico, fig.height = 3.5}
+cores_g <- c(aceite = "#2a78d6", rejeitado = "#eb6834")
+par(mar = c(4, 4, 2, 1))
+# Só até 40 000 USD, para se ver a forma (acima disso só há uma pequena parte dos rejeitados)
+ate_40k <- montante[amount <= 40000]
+dens_m <- lapply(split(ate_40k$amount, ate_40k$group), density, from = 0, to = 40000, bw = 1000)
+plot(dens_m$aceite, col = cores_g[["aceite"]], lwd = 2, main = "Montante pedido (até 40 000 USD)",
+     xlab = "USD", ylab = "densidade", ylim = range(sapply(dens_m, function(d) d$y)))
+lines(dens_m$rejeitado, col = cores_g[["rejeitado"]], lwd = 2)
+legend("topright", names(cores_g), col = cores_g, lwd = 2, bty = "n", cex = 0.8)
+```
+
+**Porquê o teste de Mann-Whitney.** São dois grupos independentes e uma variável contínua
+muito assimétrica, com valores extremos nos rejeitados (até 1,4 milhões de USD). Um teste
+baseado nas ordens não é afetado por esses extremos, ao contrário de um teste de médias.
+**Pressupostos:** os mesmos da hipótese (a), com a ressalva da independência acima. Há muitos
+empates (montantes redondos), tratados pela aproximação normal com correção.
+
+**Bootstrap com milhões de linhas.** Cada réplica demora cerca de 0,5 s, por isso usam-se
+`r B_GRANDE` réplicas em vez de `r B`. Chega: com estes tamanhos o intervalo é muito estreito
+e a sua 3.ª casa decimal não muda com mais réplicas.
+
+```{r c1-teste}
+teste_c1 <- wilcox.test(amount ~ group, data = montante, exact = FALSE)
+teste_c1
+
+m_aceite <- montante[group == "aceite", amount]
+m_rejeitado <- montante[group == "rejeitado", amount]
+rb_c1 <- rank_biserial(m_aceite, m_rejeitado)
+ic_c1 <- ic_rank_biserial(m_aceite, m_rejeitado, reps = B_GRANDE)
+data.frame(medida = c("rank-biserial (aceite vs rejeitado)", "AUC = P(X_aceite > X_rejeitado)"),
+           estimativa = round(c(rb_c1, (rb_c1 + 1) / 2), 3),
+           ic95_inf = round(c(ic_c1[1], (ic_c1[1] + 1) / 2), 3),
+           ic95_sup = round(c(ic_c1[2], (ic_c1[2] + 1) / 2), 3))
+
+resultados$c1 <- data.frame(
+  hipotese = "(c1) montante difere entre aceites e rejeitados",
+  dados = "aceites e rejeitados (2007-06 a 2014-12)",
+  n = sprintf("%d aceites / %d rejeitados", length(m_aceite), length(m_rejeitado)),
+  teste = "Mann-Whitney bilateral",
+  p = teste_c1$p.value,
+  efeito = "rank-biserial",
+  estimativa = rb_c1, ic95_inf = ic_c1[1], ic95_sup = ic_c1[2],
+  magnitude = as.character(magnitude_rb(rb_c1))
+)
+```
+
+**Interpretação.**
+
+- **Rejeita-se H0** ($p$ `r fmt_p(teste_c1$p.value)`): o montante pedido não tem
+  a mesma distribuição nos dois grupos.
+- **O efeito é `r magnitude_rb(rb_c1)`**: $r_{rb} =$ `r round(rb_c1, 3)` (IC 95%
+  `r round(ic_c1[1], 3)` a `r round(ic_c1[2], 3)`). Os **aceites** tendem a ter montantes
+  **maiores**: um aceite ao acaso tem um montante maior do que um rejeitado ao acaso em
+  `r round(100 * (rb_c1 + 1) / 2, 1)`% dos casos. As medianas são `r usd(median(m_aceite))` USD
+  (aceites) e `r usd(median(m_rejeitado))` USD (rejeitados).
+- A diferença está sobretudo na parte de baixo: um quarto dos rejeitados pede
+  `r usd(quantile(m_rejeitado, 0.25))` USD ou menos, contra `r usd(quantile(m_aceite, 0.25))` USD nos
+  aceites. Na parte de cima, os rejeitados concentram-se no máximo:
+  `r sprintf("%.1f", 100 * mean(m_rejeitado == 35000))`% pedem exatamente 35 000 USD (contra
+  `r sprintf("%.1f", 100 * mean(m_aceite == 35000))`% dos aceites), e
+  `r sprintf("%.2f", 100 * mean(m_rejeitado > 35000))`% pedem mais do que isso, o máximo dos
+  aceites (o limite do produto nestes anos). Esses pedidos nunca podiam ser aceites tal como
+  foram feitos.
+- **Associação, não causalidade:** o resultado não quer dizer que pedir mais aumente a
+  probabilidade de aceitação. Os pedidos pequenos rejeitados podem vir de requerentes com
+  outro perfil (por exemplo, com *risk score* mais baixo), e o montante dos aceites pode ter
+  sido ajustado pela LendingClub.
+
+## (c2) *Risk score*
+
+- **H0:** o *risk score* tem a mesma distribuição nos aceites e nos rejeitados.
+- **HA:** o *risk score* tende a ser **menor** nos rejeitados (teste **unilateral**, como na
+  hipótese do enunciado).
+- **Só de 2007-06 a 2013-10, nos dois grupos.** Nos rejeitados, o *risk score* é FICO até
+  2013-11-05 e VantageScore depois; as duas escalas não são comparáveis. Usa-se o mesmo período
+  de calendário nos dois grupos e só os meses completos antes da mudança.
+
+```{r c2-dados}
+score <- grupos[same_scale_period == TRUE & !is.na(risk_score),
+                .(group = factor(group, levels = c("rejeitado", "aceite")), risk_score)]
+cat("Rejeitados do período sem risk score (ficam de fora):",
+    grupos[same_scale_period == TRUE & group == "rejeitado", sum(is.na(risk_score))], "\n")
+score[, .(n = .N, min = min(risk_score), q1 = quantile(risk_score, 0.25),
+          mediana = median(risk_score), media = mean(risk_score),
+          q3 = quantile(risk_score, 0.75), max = max(risk_score)), by = group]
+```
+
+```{r c2-graficos, fig.height = 3.5}
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+dens_s <- lapply(split(score$risk_score, score$group), density, from = 300, to = 850, bw = 5)
+plot(dens_s$aceite, col = cores_g[["aceite"]], lwd = 2, main = "Risk score (FICO)",
+     xlab = "pontos", ylab = "densidade", ylim = range(sapply(dens_s, function(d) d$y)))
+lines(dens_s$rejeitado, col = cores_g[["rejeitado"]], lwd = 2)
+legend("topleft", names(cores_g), col = cores_g, lwd = 2, bty = "n", cex = 0.8)
+
+# Proporção de rejeitados entre os pedidos de cada faixa de risk score (só descritivo)
+faixas <- c(300, 550, 600, 650, 700, 750, 800, 851)
+por_faixa <- score[, .(aceites = sum(group == "aceite"), rejeitados = sum(group == "rejeitado")),
+                   keyby = .(faixa = cut(risk_score, faixas, right = FALSE, dig.lab = 3))]
+por_faixa[, pct_rejeitados := 100 * rejeitados / (aceites + rejeitados)]
+barplot(por_faixa$pct_rejeitados, names.arg = c("<550", "550", "600", "650", "700", "750", "800+"),
+        col = cores_g[["rejeitado"]], border = NA, main = "Rejeitados por faixa",
+        xlab = "risk score (início da faixa)", ylab = "% rejeitados", ylim = c(0, 100),
+        cex.names = 0.7)
+```
+
+```{r c2-faixas}
+por_faixa[, .(faixa, aceites, rejeitados, pct_rejeitados = round(pct_rejeitados, 1))]
+```
+
+**Teste e pressupostos.** Mann-Whitney, pelas mesmas razões da hipótese (a): dois grupos
+independentes (com a ressalva acima) e uma variável ordinal (o *score* é uma pontuação). As
+formas das distribuições são diferentes, por isso o resultado lê-se como
+$P(X_{rejeitado} < X_{aceite})$ e não como uma diferença de medianas.
+
+```{r c2-teste}
+teste_c2 <- wilcox.test(risk_score ~ group, data = score, alternative = "less", exact = FALSE)
+teste_c2
+
+s_rejeitado <- score[group == "rejeitado", risk_score]
+s_aceite <- score[group == "aceite", risk_score]
+rb_c2 <- rank_biserial(s_rejeitado, s_aceite)
+ic_c2 <- ic_rank_biserial(s_rejeitado, s_aceite, reps = B_GRANDE)
+data.frame(medida = c("rank-biserial (rejeitado vs aceite)", "P(X_rejeitado < X_aceite)"),
+           estimativa = round(c(rb_c2, (1 - rb_c2) / 2), 3),
+           ic95_inf = round(c(ic_c2[1], (1 - ic_c2[2]) / 2), 3),
+           ic95_sup = round(c(ic_c2[2], (1 - ic_c2[1]) / 2), 3))
+
+resultados$c2 <- data.frame(
+  hipotese = "(c2) risk score menor nos rejeitados",
+  dados = "aceites e rejeitados (2007-06 a 2013-10, escala FICO)",
+  n = sprintf("%d aceites / %d rejeitados", length(s_aceite), length(s_rejeitado)),
+  teste = "Mann-Whitney unilateral",
+  p = teste_c2$p.value,
+  efeito = "rank-biserial",
+  estimativa = rb_c2, ic95_inf = ic_c2[1], ic95_sup = ic_c2[2],
+  magnitude = as.character(magnitude_rb(rb_c2))
+)
+```
+
+**Interpretação.**
+
+- **Rejeita-se H0** ($p$ `r fmt_p(teste_c2$p.value)`): os rejeitados tendem a ter
+  um *risk score* menor.
+- **O efeito é `r magnitude_rb(rb_c2)`**: $r_{rb} =$ `r round(rb_c2, 3)` (IC 95%
+  `r round(ic_c2[1], 3)` a `r round(ic_c2[2], 3)`). Um rejeitado ao acaso tem um *score* menor
+  do que um aceite ao acaso em `r round(100 * (1 - rb_c2) / 2, 1)`% dos casos. As medianas são
+  `r median(s_rejeitado)` (rejeitados) e `r median(s_aceite)` (aceites).
+- O gráfico da direita responde diretamente à hipótese do enunciado: a proporção de rejeitados
+  desce à medida que o *score* sobe. Não há nenhum aceite abaixo de `r min(s_aceite)` pontos,
+  o que indica um limite mínimo na política de crédito. Mesmo nas faixas mais altas, mais de
+  metade dos pedidos é rejeitada: o *score* não é o único critério (DTI, montante, historial).
+- **Associação e não causalidade, mesmo aqui.** A LendingClub usa o *score* na decisão, por isso
+  é plausível que parte do efeito seja causal. Mas o teste só mostra a associação: o *score*
+  está também relacionado com outras variáveis usadas na decisão, e os dados não permitem
+  separar o seu efeito próprio.
