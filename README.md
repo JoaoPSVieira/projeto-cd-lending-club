@@ -49,7 +49,7 @@ pip install -e .
 R (testes de hipóteses): R ≥ 4.1 e pandoc (incluído no RStudio).
 
 ```r
-install.packages(c("rmarkdown", "knitr", "data.table", "boot"))
+  install.packages(c("rmarkdown", "knitr", "data.table", "boot", "recipes"))
 ```
 
 ## Dados
@@ -66,17 +66,18 @@ Cada notebook lê os ficheiros gerados pelos anteriores, por isso a ordem import
 4. `01c_pipeline.ipynb`: pipeline de pré-processamento e validação temporal
 5. `02_eda.ipynb`: análise exploratória, PCA e UMAP
 6. `02b_dados_testes_hipoteses.ipynb`: exporta para CSV os dados dos testes em R
-7. `R/testes_hipoteses.Rmd`: testes de hipóteses; gera `reports/testes_hipoteses.html`
+7a. `R/testes_hipoteses.Rmd`: testes de hipóteses; gera `reports/testes_hipoteses.html`
    ```text
    Rscript -e "rmarkdown::render('R/testes_hipoteses.Rmd', output_dir = 'reports')"
    ```
+  7b. `R/pipeline_pca.Rmd`: o mesmo pipeline em R (recipes), com verificação cruzada do PCA
 8. `03_features.ipynb`: features novas, verificadas no pipeline
 
 ## Entrega da Parte 1
 
 - Relatório: `reports/relatorio_parte1.pdf` (fonte LaTeX em `reports/relatorio/`)
 - Notebook de exploração e pré-processamento: os notebooks 00 a 03, pela ordem acima
-- Trabalho em R: `R/testes_hipoteses.Rmd` e o HTML gerado em `reports/`
+- Trabalho em R: `R/testes_hipoteses.Rmd`, `R/pipeline_pca.Rmd` e os HTML gerados em `reports/`
 - Documentação: `docs/` (uma pasta por fase) e as docstrings do pacote `src/lending`
 
 ## Grupo

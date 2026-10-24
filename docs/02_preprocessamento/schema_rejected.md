@@ -3,7 +3,7 @@
 _Gerado automaticamente por `notebooks/01b_rejeitados.ipynb` - não editar à mão._
 
 - Conjunto descrito: rejected, desenvolvimento, 3,450,084 linhas x 9 colunas
-- Gerado em: 2026-10-17
+- Gerado em: 2026-10-24
 - Tipos e unidades: `src/lending/schema.py`. Significado de cada coluna: `docs/01_formulacao_problema/elegibilidade_colunas.md`.
 - Mín./máx.: valores observados neste conjunto (vazio se a coluna não tiver valores).
 - Exemplos: as categorias mais frequentes.
