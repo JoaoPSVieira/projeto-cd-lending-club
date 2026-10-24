@@ -55,15 +55,15 @@ rejeitados seja direto.
 
 | Coluna original | Nome usado | Tipo | Conversão | Unidade |
 |---|---|---|---|---|
-| Amount Requested | `amount_requested` | number | "1000.0" → 1000.0 | USD |
-| Application Date | `application_date` | date | "2007-05-26" → data | dia |
+| Amount Requested | `amount_requested` | number | "1000.0" -> 1000.0 | USD |
+| Application Date | `application_date` | date | "2007-05-26" -> data | dia |
 | Loan Title | `title` | text | espaços nas pontas retirados | texto |
-| Risk_Score | `risk_score` | number | "693.0" → 693.0 | pontos |
-| Debt-To-Income Ratio | `dti` | percent | "38.64%" → 38.64 | % (0–100) |
+| Risk_Score | `risk_score` | number | "693.0" -> 693.0 | pontos |
+| Debt-To-Income Ratio | `dti` | percent | "38.64%" -> 38.64 | % (0–100) |
 | Zip Code | `zip_code` | category | "481xx" | 3 primeiros dígitos |
 | State | `addr_state` | category | sigla | estado |
-| Employment Length | `emp_length` | emp_length | "< 1 year" → 0 … "10+ years" → 10 | anos |
-| Policy Code | `policy_code` | number | "0.0" → 0.0 | código |
+| Employment Length | `emp_length` | emp_length | "< 1 year" -> 0 … "10+ years" -> 10 | anos |
+| Policy Code | `policy_code` | number | "0.0" -> 0.0 | código |
 
 **Comparabilidade com o *accepted*:**
 - `dti` fica na escala 0–100, como o `dti` do *accepted* (onde 18.5 = 18,5%).
@@ -94,7 +94,7 @@ O schema completo, com o intervalo observado de cada coluna, está em `schema_re
 
 ## 5. *Risk score*
 
-### 5.1 Zeros → valor em falta
+### 5.1 Zeros -> valor em falta
 
 `Risk_Score` = 0 não é uma pontuação possível (o FICO vai de 300 a 850) e o enunciado diz
 que conta como valor em falta. Há zeros em todos os anos até 2013 e nenhum em 2014, quando
@@ -131,9 +131,9 @@ DTI vai de 0 a 39,99%. As contagens são do desenvolvimento antes das exclusões
 
 | Valores | Pedidos | Interpretação | Regra |
 |---|---:|---|---|
-| −1 | 265 406 | Código de "sem dados": 97% destes pedidos também não têm *risk score* | → valor em falta |
-| 9 999, 99 999, 199 998 | 12 513 | Números redondos repetidos milhares de vezes: valores de teto do campo | → valor em falta |
-| Acima de 1000% | 8 346 | As dívidas mensais valeriam mais de 10 vezes o rendimento: rendimento mal introduzido. Inclui o 4042.11% do enunciado | → valor em falta |
+| −1 | 265 406 | Código de "sem dados": 97% destes pedidos também não têm *risk score* | -> valor em falta |
+| 9 999, 99 999, 199 998 | 12 513 | Números redondos repetidos milhares de vezes: valores de teto do campo | -> valor em falta |
+| Acima de 1000% | 8 346 | As dívidas mensais valeriam mais de 10 vezes o rendimento: rendimento mal introduzido. Inclui o 4042.11% do enunciado | -> valor em falta |
 | 100% a 1000% | 72 456 | Plausível num rejeitado: dívidas acima do rendimento são um motivo de rejeição | Fica |
 | 0% | 203 261 | Possível (sem outras dívidas) | Fica |
 
@@ -147,7 +147,7 @@ robustas (mediana, testes de postos), que quase não dependem da posição exata
 
 | Valores | Pedidos | Regra |
 |---|---:|---|
-| 0 USD | 2 | → valor em falta (um pedido sem montante não é um valor real) |
+| 0 USD | 2 | -> valor em falta (um pedido sem montante não é um valor real) |
 | Acima de 35 000 USD (o máximo dos aceites até 2016) | 17 711 (17 291 em 2014) | Fica: são pedidos reais acima do limite da plataforma |
 
 Na hipótese "o montante pedido difere entre aceites e rejeitados", parte da diferença vem
@@ -212,7 +212,7 @@ falta" (ex.: DTI −1 e 9 999), o que criaria falsos repetidos.
 | Produtos novos não públicos | 3 450 084 | 6 241 | 3 443 843 |
 | Pedidos repetidos | 3 443 843 | 19 615 | **3 424 228** |
 
-| Correção (→ valor em falta) | Valores |
+| Correção (-> valor em falta) | Valores |
 |---|---:|
 | `risk_score` = 0 | 86 038 |
 | `dti` = −1, 9 999, 99 999, 199 998 | 264 300 |

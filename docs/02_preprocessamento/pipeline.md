@@ -83,9 +83,9 @@ O teste final (2015) não entra em nenhum *fold*.
 
 | Ramo | Passos |
 |---|---|
-| Montantes em USD | colunas vazias saem (quais) → log(1 + x) → *clipping* aos percentis 0,5% e 99,5% (limites) → mediana + indicador de "em falta" (medianas) → padronização (média, desvio) |
-| Outras numéricas | colunas vazias saem (quais) → *clipping* (limites) → mediana + indicador (medianas) → padronização (média, desvio) |
-| Categorias | colunas vazias saem (quais) → "em falta" como categoria → *one-hot*, com as categorias abaixo de 0,5% do treino juntas (categorias) |
+| Montantes em USD | colunas vazias saem (quais) -> log(1 + x) -> *clipping* aos percentis 0,5% e 99,5% (limites) -> mediana + indicador de "em falta" (medianas) -> padronização (média, desvio) |
+| Outras numéricas | colunas vazias saem (quais) -> *clipping* (limites) -> mediana + indicador (medianas) -> padronização (média, desvio) |
+| Categorias | colunas vazias saem (quais) -> "em falta" como categoria -> *one-hot*, com as categorias abaixo de 0,5% do treino juntas (categorias) |
 
 | Passo | Porquê | Alternativa rejeitada |
 |---|---|---|

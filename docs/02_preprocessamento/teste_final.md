@@ -18,9 +18,9 @@ notebook). O teste recebe-as tal como estão, pela mesma ordem, sem nenhum ajust
 | N.º | Regra | Secção | Documento |
 |---:|---|---|---|
 | 1 | Conversão de tipos (schema fixo) | 4 | `conversao_tipos.md` |
-| 2 | 0 meses com contagem 0 → valor em falta ("nunca aconteceu") | 6.1 | `valores_em_falta.md` |
+| 2 | 0 meses com contagem 0 -> valor em falta ("nunca aconteceu") | 6.1 | `valores_em_falta.md` |
 | 3 | Exclusão dos empréstimos com condições modificadas | 8.1 | `valores_suspeitos.md` |
-| 4 | Teto 9 999 999 → valor em falta | 8.2 | `valores_suspeitos.md` |
+| 4 | Teto 9 999 999 -> valor em falta | 8.2 | `valores_suspeitos.md` |
 
 As quatro regras são **fixas e aplicadas linha a linha**: nenhuma calcula uma estatística
 dos dados (médias, quantis, categorias frequentes). Por isso aplicá-las ao teste não é
@@ -56,7 +56,7 @@ conjunto **idêntico, célula a célula**, ao desenvolvimento limpo
 | Separar o desenvolvimento e o período reservado | 2 260 668 | 1 839 573 | 421 095 |
 | Condições modificadas depois da concessão | 421 095 | 207 | **420 888** |
 
-| Correção (valor → em falta) | Valores corrigidos |
+| Correção (valor -> em falta) | Valores corrigidos |
 |---|---:|
 | `mths_since_last_record` = 0 com `pub_rec` = 0 | 0 |
 | `mths_since_last_delinq` = 0 com `delinq_2yrs` = 0 | 1 |

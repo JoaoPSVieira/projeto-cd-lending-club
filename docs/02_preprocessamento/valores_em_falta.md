@@ -56,7 +56,7 @@ um atraso há 0 meses contaria em `delinq_2yrs` (atrasos nos últimos 2 anos). �
 de codificação da LendingClub: até 2008 "nunca aconteceu" era 0, depois passou a vazio. É o
 mesmo tipo de problema que o enunciado aponta no `Risk_Score` = 0 dos rejeitados.
 
-**Regra:** meses = 0 **e** contagem = 0 → meses passa a valor em falta ("sem evento"). É
+**Regra:** meses = 0 **e** contagem = 0 -> meses passa a valor em falta ("sem evento"). É
 determinística e usa só a própria linha, por isso aplica-se igual ao teste.
 
 **Resultado:** 1 275 valores corrigidos em `mths_since_last_record` e 820 em

@@ -108,7 +108,7 @@ alterações.
 `tot_hi_cred_lim` (3 linhas) e `total_rev_hi_lim` (2 das mesmas linhas) têm exatamente
 9 999 999, o maior valor que cabe em 7 dígitos. Numa das linhas o limite total é 9 999 999,
 mas o limite rotativo é 63 400 USD e o saldo total 268 743 USD: não é um limite real.
-**Regra:** 9 999 999 exato → valor em falta. 5 valores corrigidos.
+**Regra:** 9 999 999 exato -> valor em falta. 5 valores corrigidos.
 
 ---
 
@@ -132,7 +132,7 @@ mas o limite rotativo é 63 400 USD e o saldo total 268 743 USD: não é um limi
 | Alteração | Linhas / valores |
 |---|---:|
 | Exclusão dos empréstimos com condições modificadas | 221 linhas |
-| 9 999 999 → valor em falta em `tot_hi_cred_lim` / `total_rev_hi_lim` | 3 / 2 valores |
+| 9 999 999 -> valor em falta em `tot_hi_cred_lim` / `total_rev_hi_lim` | 3 / 2 valores |
 
 O conjunto de desenvolvimento passa de 466 345 para **466 124** empréstimos. O conjunto limpo
 e o registo de exclusões completo são guardados no fim do pré-processamento.
