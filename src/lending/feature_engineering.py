@@ -1,19 +1,19 @@
 """
-Engenharia de features - Fase 3 do enunciado (Model Selection)
+Feature Engineering - Fase 3 (Model Selection)
 
-Requisitos do enunciado que este módulo cumpre:
-    - "Engineer at least 10 meaningful new features."
+Requisitos do enunciado cumpridos:
+    - "Engineer at least 10 meaningful new features"
     - "For each, record its source columns, formula, rationale, missing-value handling, and
       eligibility for each prediction time": cada feature é um FeatureSpec com estes campos;
-      catalog() devolve a ficha de todas (docs/03_features/ e secção 3 do relatório).
-    - "Do not keep flags, ratios (...) computed from excluded fields, for example (...)
+      catalog() devolve a ficha de todas.
+    - "Do not keep flags, ratios, text, embeddings, or missingness counts computed from
+      excluded fields, for example has_recovery, a hardship-field nonmissing count, or
       installment-to-income in rate regression": uma feature herda a elegibilidade das
-      colunas de onde vem ("só vale o que já nasceu"). O FeatureBuilder verifica, com
-      forbidden_columns (features.py), que nenhuma feature de uma tarefa usa uma coluna
-      proibida nessa tarefa, e dá erro se usar.
+      colunas de onde vem. O FeatureBuilder verifica, com forbidden_columns (features.py),
+      que nenhuma feature de uma tarefa usa uma coluna proibida nessa tarefa, e se usar dá erro.
 
 Como entra no pipeline:
-    As features são cálculos linha a linha (rácios, diferenças de datas, indicadores) e não
+    As features são cálculos linha a linha e não
     aprendem nada com os dados, por isso não passa informação da validação para o treino.
     Mesmo assim, o FeatureBuilder é um transformer do scikit-learn e fica DENTRO do pipeline,
     antes do build_preprocessor, para ser aplicado sempre da mesma forma no treino, na
@@ -29,7 +29,7 @@ Como entra no pipeline:
     dão NaN, nunca infinito nem 0. Os NaN são tratados pelo pipeline como os das outras
     colunas: imputação pela mediana do treino de cada fold + indicador de "em falta".
 
-Unidades: as percentagens seguem a convenção do schema (0 a 100, como dti e int_rate).
+Unidades: as percentagens seguem a convenção do schema (0 a 100)
 """
 
 import copy
@@ -53,19 +53,19 @@ MOMENTS = {
 @dataclass(frozen=True)
 class FeatureSpec:
     """
-    Definição ("ficha") de uma feature nova, com tudo o que o enunciado pede registar
+    Definição de uma feature nova
 
     Attributes:
         name (str): Nome da coluna criada
         sources (tuple[str]): Colunas de origem
-        formula (str): Fórmula, em texto
+        formula (str): Fórmula
         rationale (str): Porque é útil
         missing (str): O que acontece aos valores em falta e aos casos impossíveis
         moment (str): Momento a partir do qual o valor existe ("T0", "T2" ou "T4")
         tasks (tuple[str]): Tarefas em que é elegível
         compute (Callable[[pd.DataFrame], pd.Series]): Cálculo, linha a linha
         kind (str): Grupo do pipeline em que entra ("numeric" ou "categorical")
-        author (str): Quem a propôs (para a divisão do trabalho no relatório)
+        author (str): Quem propôs (para o relatório)
     """
     name: str
     sources: tuple
@@ -79,9 +79,9 @@ class FeatureSpec:
     author: str = ""
 
 
-# =============================================================================
-# Funções auxiliares (sempre NaN em vez de infinito)
-# =============================================================================
+# ======================
+# = Funções auxiliares =
+# ======================
 
 def safe_ratio(numerator, denominator):
     """
@@ -100,7 +100,7 @@ def safe_ratio(numerator, denominator):
 
 def months_between(later, earlier):
     """
-    Número de meses de calendário entre duas datas mês/ano (later - earlier)
+    Número de meses entre duas datas mês/ano
 
     As duas colunas são datas do tipo "mês/ano" (o dia é sempre 1), por isso a diferença
     é feita em meses inteiros, sem arredondamentos de dias.
@@ -113,9 +113,9 @@ def months_between(later, earlier):
     return months.astype("float64")
 
 
-# =============================================================================
-# Cálculos de cada feature
-# =============================================================================
+# ============================
+# = Cálculos de cada feature =
+# ============================
 
 def _loan_to_income(df):
     return safe_ratio(df["loan_amnt"], df["annual_inc"])
@@ -140,12 +140,11 @@ def _issue_year(df):
     return pd.to_datetime(df["issue_d"]).dt.year.astype("float64")
 
 
-# =============================================================================
-# Catálogo das features (10 no total: 5 de cada elemento do grupo)
-# =============================================================================
+# =========================
+# = Catálogo das features =
+# =========================
 
 FEATURES = [
-    # ------------------------------------------------------------------ João (5)
     FeatureSpec(
         name="loan_to_income",
         sources=("loan_amnt", "annual_inc"),
@@ -222,9 +221,9 @@ FEATURES = [
 ]
 
 
-# =============================================================================
-# Transformer e funções de apoio
-# =============================================================================
+# ==================================
+# = Transformer e funções de apoio =
+# ==================================
 
 def specs_for(task, specs=None):
     """
@@ -246,9 +245,6 @@ def check_leakage(task, specs=None):
     """
     Dá erro se alguma feature elegível na tarefa usar uma coluna proibida nessa tarefa
 
-    Aplica a regra do enunciado: rácios ou indicadores calculados a partir de colunas
-    excluídas continuam proibidos (ex.: installment_to_income na regressão).
-
     Raises:
         ValueError: Com a feature e as colunas proibidas encontradas
     """
@@ -262,8 +258,8 @@ class FeatureBuilder(BaseEstimator, TransformerMixin):
     """
     Acrescenta ao DataFrame as features novas elegíveis numa tarefa
 
-    Não aprende nada no fit (os cálculos são linha a linha): o fit só confirma que as
-    colunas de origem existem e que nenhuma feature usa colunas proibidas na tarefa.
+    Não aprende nada no fit: o fit só confirma que as colunas de origem
+    existem e que nenhuma feature usa colunas proibidas na tarefa.
 
     Attributes:
         task (str): "regression", "classification" ou "clustering"
@@ -309,7 +305,7 @@ def add_engineered(task_features, specs=None):
     """
     Cópia de um TaskFeatures com as features novas da tarefa nos grupos certos
 
-    Assim, o build_preprocessor (preprocessing.py) trata as features novas como as outras
+    Assim o build_preprocessor (preprocessing.py) trata as features novas como as outras
     colunas: clipping, imputação + indicador e padronização (numéricas) ou one-hot
     (categorias).
 
@@ -355,13 +351,13 @@ def catalog(specs=None):
     Ficha de todas as features: fontes, fórmula, motivo, valores em falta e elegibilidade
 
     Returns:
-        pd.DataFrame: Uma linha por feature; ✅/❌ por tarefa
+        pd.DataFrame: Uma linha por feature; ✓ / ✗ por tarefa
     """
     rows = []
     for s in (FEATURES if specs is None else specs):
         row = {"feature": s.name, "autor": s.author, "fontes": ", ".join(s.sources),
                "fórmula": s.formula, "momento": MOMENTS.get(s.moment, s.moment)}
-        row.update({task: "✅" if task in s.tasks else "❌" for task in TASKS})
+        row.update({task: "✓" if task in s.tasks else "✗" for task in TASKS})
         row.update({"motivo": s.rationale, "valores em falta": s.missing})
         rows.append(row)
     return pd.DataFrame(rows).set_index("feature")
