@@ -75,7 +75,7 @@ Cada notebook lê os ficheiros gerados pelos anteriores, por isso a ordem import
 
 ## Entrega da Parte 1
 
-- Relatório: `reports/relatorio_parte1.pdf` (fonte LaTeX em `reports/relatorio/`)
+- Relatório: `reports/relatorio_parte1.pdf` (`reports/relatorio/`)
 - Notebook de exploração e pré-processamento: os notebooks 00 a 03, pela ordem acima
 - Trabalho em R: `R/testes_hipoteses.Rmd`, `R/pipeline_pca.Rmd` e os HTML gerados em `reports/`
 - Documentação: `docs/` (uma pasta por fase) e as docstrings do pacote `src/lending`
