@@ -145,8 +145,10 @@ def _revol_to_income(df):
 
 
 def _open_acc_pct(df):
-    # % das linhas de crédito do historial que ainda estão abertas (0 a 100)
-    return 100 * safe_ratio(df["open_acc"], df["total_acc"])
+    # % das linhas de crédito do historial que ainda estão abertas (0 a 100). Mais contas
+    # abertas do que no total é impossível (2 empréstimos de 2007, valores_suspeitos.md): NaN
+    pct = 100 * safe_ratio(df["open_acc"], df["total_acc"])
+    return pct.where(pct <= 100)
 
 
 def _ever_delinquent(df):
@@ -162,6 +164,11 @@ def _ever_delinquent(df):
 def _has_public_record(df):
     pub_rec = df["pub_rec"].astype("float64")
     return (pub_rec > 0).astype("float64").where(pub_rec.notna())
+
+
+def _total_credit_util(df):
+    # Saldo de todas as linhas de crédito em % do limite total (0 a 100; pode passar 100)
+    return 100 * safe_ratio(df["tot_cur_bal"], df["tot_hi_cred_lim"])
 
 
 # =========================
@@ -266,8 +273,9 @@ FEATURES = [
                   "percentagem alta indica crédito recente ou acumulado. No treino da "
                   "classificação, o quintil mais alto tem 15,5% de default contra 10,5% a 12,1% "
                   "nos outros (relação não linear); a correlação com o open_acc é só ρ = 0,26.",
-        missing="NaN se alguma das colunas faltar ou se total_acc for <= 0; imputação pela "
-                "mediana do treino + indicador no pipeline.",
+        missing="NaN se alguma das colunas faltar, se total_acc for <= 0 ou se open_acc for "
+                "maior do que total_acc (caso impossível: 2 empréstimos de 2007); imputação "
+                "pela mediana do treino + indicador no pipeline.",
         moment="T0",
         tasks=("regression", "classification", "clustering"),
         compute=_open_acc_pct,
@@ -306,7 +314,26 @@ FEATURES = [
         compute=_has_public_record,
         author="Rodrigo",
     ),
-    # COLOCAR AQUI A ÚLTIMA
+    FeatureSpec(
+        name="total_credit_util",
+        sources=("tot_cur_bal", "tot_hi_cred_lim"),
+        formula="100 × tot_cur_bal / tot_hi_cred_lim",
+        rationale="Utilização de todo o crédito (cartões, empréstimos e hipotecas), e não só do "
+                  "rotativo como o revol_util: mede quanto do crédito total ainda está em dívida. "
+                  "É a feature nova com mais relação com a taxa na regressão (ρ = 0,11 com o "
+                  "int_rate) e a correlação com o revol_util é só ρ = 0,39.",
+        missing="NaN se alguma das colunas faltar ou se tot_hi_cred_lim for <= 0 (15 casos na "
+                "regressão); imputação pela mediana do treino + indicador. Valores acima de 100% "
+                "(saldo acima do limite, 5 536 casos) são reais e ficam; o clipping aos "
+                "percentis do treino limita os extremos.",
+        moment="T0",
+        # As duas colunas são das 37 do bureau que só existem a partir de 2012
+        # (valores_em_falta.md, secção 4): vazias no treino da classificação (2007-2011) e em
+        # 2007-2012 no clustering. Por isso só entra na regressão (treino 2013-2014)
+        tasks=("regression",),
+        compute=_total_credit_util,
+        author="Rodrigo",
+    ),
 ]
 
 
