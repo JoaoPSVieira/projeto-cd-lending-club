@@ -575,3 +575,96 @@ resultados$c2 <- data.frame(
   é plausível que parte do efeito seja causal. Mas o teste só mostra a associação: o *score*
   está também relacionado com outras variáveis usadas na decisão, e os dados não permitem
   separar o seu efeito próprio.
+
+# Tabela consolidada
+
+**Comparações múltiplas.** Fizeram-se 4 testes. Se cada um usar $\alpha = 0{,}05$, a
+probabilidade de pelo menos um falso positivo no conjunto é maior do que 5%. A **correção de
+Holm** controla essa probabilidade: ordenam-se os p-valores do menor para o maior e o $i$-ésimo
+é comparado com $\alpha / (m - i + 1)$, onde $m = 4$. Dá a mesma garantia que a correção de
+Bonferroni ($\alpha / m$ para todos), mas rejeita mais vezes quando há efeitos reais. Os
+p-valores abaixo já vêm ajustados (`p.adjust(..., method = "holm")`).
+
+```{r tabela}
+tabela <- do.call(rbind, unname(resultados))
+tabela$p_holm <- p.adjust(tabela$p, method = "holm")
+tabela$decisao <- ifelse(tabela$p_holm < ALFA, "rejeita H0", "não rejeita H0")
+
+# p-valores abaixo da precisão da máquina aparecem como "< 2.2e-16"
+fmt_p_tabela <- function(p) {
+  ifelse(p < .Machine$double.eps, "< 2.2e-16", formatC(p, format = "e", digits = 1))
+}
+vista <- data.frame(
+  "Hipótese" = tabela$hipotese,
+  "Dados" = tabela$dados,
+  "n" = tabela$n,
+  "Teste" = tabela$teste,
+  "p (Holm)" = fmt_p_tabela(tabela$p_holm),
+  "Efeito [IC 95%]" = sprintf("%s = %.3f [%.3f; %.3f]", tabela$efeito, tabela$estimativa,
+                              tabela$ic95_inf, tabela$ic95_sup),
+  "Magnitude" = tabela$magnitude,
+  "Decisão" = tabela$decisao,
+  check.names = FALSE
+)
+knitr::kable(vista)
+```
+
+```{r gravar-tabela}
+# A mesma tabela num ficheiro da documentação (gerado, como as tabelas de exclusões)
+destino <- file.path("docs", "02_testes_hipoteses", "tabela_resultados.md")
+dir.create(dirname(destino), showWarnings = FALSE)
+writeLines(c(
+  "# Testes de hipóteses: tabela de resultados",
+  "",
+  "_Gerado automaticamente por `R/testes_hipoteses.Rmd` - não editar à mão._",
+  "",
+  sprintf("- Gerado em: %s", Sys.Date()),
+  "- Só dados de desenvolvimento; o teste final (2015) não é usado.",
+  sprintf("- p-valores com a correção de Holm (%d testes, alfa = %.2f).", nrow(tabela), ALFA),
+  sprintf("- IC 95%% por bootstrap (percentis; %d réplicas, %d nos testes com milhões de linhas; semente %d).",
+          B, B_GRANDE, SEMENTE),
+  "- Magnitude: rank-biserial pelos limiares de Romano et al. (2006); V de Cramér pelos de Cohen (1988).",
+  "- Justificação de cada teste, pressupostos e interpretação: `reports/testes_hipoteses.html`.",
+  "",
+  knitr::kable(vista, format = "pipe")
+), destino, useBytes = TRUE)
+cat("Gravado:", destino, "\n")
+```
+
+# Conclusões
+
+- **As quatro hipóteses rejeitam H0**, mesmo com a correção de Holm. Com amostras deste
+  tamanho isso era de esperar e, sozinho, diz pouco.
+- **Os tamanhos dos efeitos são muito diferentes:**
+  - o *risk score* separa fortemente aceites e rejeitados (efeito grande);
+  - o montante pedido difere pouco entre aceites e rejeitados (efeito pequeno);
+  - o `purpose` está associado ao *default* com um efeito global pequeno, mas com categorias de
+    risco muito diferente (*small_business* quase com o triplo de *major_purchase*);
+  - o DTI quase não separa os *Default* dos *Good standing* (efeito desprezável), apesar de a
+    taxa de *default* subir de forma monótona com o DTI.
+- **Para os modelos da Parte 2:** nenhuma variável isolada separa bem as classes do
+  *default*, por isso é de esperar que os modelos tenham de combinar várias variáveis, e que as
+  não lineares (árvores, *ensembles*) possam ganhar. O `purpose` deve entrar como categoria,
+  com as raras agrupadas.
+- **Limitações comuns:**
+  - *selection bias*: o *default* só se observa nos aceites, e a política de crédito cortou os
+    casos extremos (DTI de 30% ou mais, *score* abaixo de 612);
+  - os dados são observacionais: todas as relações são associações, não causas;
+  - não há identificador do mutuário, por isso a independência das observações é aproximada;
+  - o montante dos aceites pode ter sido ajustado e a sua data é a de financiamento.
+
+# Reprodutibilidade
+
+Para gerar este relatório (a partir da pasta do projeto, depois de correr
+`notebooks/02b_dados_testes_hipoteses.ipynb`):
+
+```
+Rscript -e "rmarkdown::render('R/testes_hipoteses.Rmd', output_dir = 'reports')"
+```
+
+Precisa dos pacotes `rmarkdown`, `knitr`, `data.table` e `boot`, e do pandoc. Todos os
+resultados aleatórios usam a semente `r SEMENTE`.
+
+```{r sessao}
+sessionInfo()
+```
