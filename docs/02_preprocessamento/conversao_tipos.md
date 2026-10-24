@@ -87,12 +87,12 @@ Resultado no desenvolvimento (466 345 linhas):
 | Verificação | Resultado |
 |---|---|
 | Valores fora do formato | 0 em todas as colunas |
-| Texto só com espaços → em falta | 235, todos em `desc` |
+| Texto só com espaços -> em falta | 235, todos em `desc` |
 | `term` | 36 meses: 337 996; 60 meses: 128 349 |
 | `emp_length` | 0–10 anos, 21 018 em falta (já vazios no ficheiro) |
 | `issue_d` | 2007-06 a 2014-12 |
 | `earliest_cr_line` | 1944-01 a 2011-11 |
-| Memória | 850 MB → 667 MB |
+| Memória | 850 MB -> 667 MB |
 
 ---
 

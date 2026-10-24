@@ -62,7 +62,7 @@ T4 concessão. A regressão prevê em T0, a classificação em T4 e o clustering
   montante e o rendimento estão correlacionados (ρ = 0,50), mas nenhum dos dois, sozinho,
   mede o esforço do pedido.
 - **Valores em falta:** NaN se `annual_inc` faltar ou for ≤ 0; imputação pela mediana + indicador.
-- **Elegibilidade:** T0 (ambas as colunas existem no pedido) → regressão, classificação e clustering.
+- **Elegibilidade:** T0 (ambas as colunas existem no pedido) -> regressão, classificação e clustering.
 
 ### 2. `installment_to_income` - prestação / rendimento mensal (João)
 
@@ -71,7 +71,7 @@ T4 concessão. A regressão prevê em T0, a classificação em T4 e o clustering
 - **Motivo:** mede o peso da prestação no orçamento mensal. Na EDA, a prestação em valor
   absoluto não tem relação com o *default*; em proporção do rendimento, passa a medir o esforço.
 - **Valores em falta:** NaN se `annual_inc` faltar ou for ≤ 0; imputação + indicador.
-- **Elegibilidade:** T2 (`installment` é calculada a partir da taxa) → só classificação.
+- **Elegibilidade:** T2 (`installment` é calculada a partir da taxa) -> só classificação.
   Na regressão é proibida pelo enunciado.
 
 ### 3. `dti_with_loan` - DTI com o novo empréstimo (João)
@@ -81,7 +81,7 @@ T4 concessão. A regressão prevê em T0, a classificação em T4 e o clustering
 - **Motivo:** o `dti` da LendingClub não inclui o empréstimo pedido. Somar a nova prestação dá o
   endividamento do mutuário depois de o receber, que é o que determina a capacidade de pagar.
 - **Valores em falta:** NaN se `dti`, `installment` ou `annual_inc` faltarem; imputação + indicador.
-- **Elegibilidade:** T2 → só classificação.
+- **Elegibilidade:** T2 -> só classificação.
 - **Nota:** é uma combinação linear de `dti` e `installment_to_income`. Nos modelos lineares e
   no kNN usa-se só uma das duas; nas árvores podem ficar ambas. A escolha é feita na validação
   cruzada.
@@ -95,7 +95,7 @@ T4 concessão. A regressão prevê em T0, a classificação em T4 e o clustering
   `issue_d` (e não à data de hoje ou a um *credit pull* posterior).
 - **Valores em falta:** NaN se alguma das datas faltar ou se a diferença for negativa (data
   impossível); imputação + indicador.
-- **Elegibilidade:** T4 → só classificação. Na regressão, `issue_d` é uma data futura em relação
+- **Elegibilidade:** T4 -> só classificação. Na regressão, `issue_d` é uma data futura em relação
   ao pedido; aí a antiguidade vem de `mo_sin_old_rev_tl_op`, calculada pelo *bureau*.
 
 ### 5. `issue_year` - ano de concessão (João)
@@ -103,9 +103,9 @@ T4 concessão. A regressão prevê em T0, a classificação em T4 e o clustering
 - **Fontes:** `issue_d`
 - **Fórmula:** ano de `issue_d`
 - **Motivo:** capta mudanças de política e de contexto económico. Na EDA, a população de
-  2013–2014 é mais arriscada do que a de 2007–2011 (FICO mediano de 710 → 685).
+  2013–2014 é mais arriscada do que a de 2007–2011 (FICO mediano de 710 -> 685).
 - **Valores em falta:** nenhum (`issue_d` existe sempre).
-- **Elegibilidade:** T4 → só classificação, como condicional (⚠️): o enunciado permite datas de
+- **Elegibilidade:** T4 -> só classificação, como condicional (⚠️): o enunciado permite datas de
   concessão no classificador "quando justificado".
 - **Nota:** o teste (2015) está fora dos anos de treino. Como o pipeline limita cada variável aos
   percentis do treino, um ano posterior é tratado como o último ano do treino (a tendência não
@@ -118,7 +118,7 @@ T4 concessão. A regressão prevê em T0, a classificação em T4 e o clustering
 - **Fórmula:** `revol_bal / annual_inc`
 - **Motivo:** peso da dívida rotativa (sobretudo cartões) face ao rendimento.
 - **Valores em falta:** NaN se `annual_inc` faltar ou for ≤ 0; imputação + indicador.
-- **Elegibilidade:** T0 → regressão, classificação e clustering.
+- **Elegibilidade:** T0 -> regressão, classificação e clustering.
 
 ### 7. `open_acc_ratio` - contas abertas / total de contas (Soares, proposta)
 
@@ -128,7 +128,7 @@ T4 concessão. A regressão prevê em T0, a classificação em T4 e o clustering
   já fechadas. Na EDA, `open_acc` e `total_acc` estão correlacionados (ρ = 0,67); o rácio
   retira a escala comum.
 - **Valores em falta:** NaN se `total_acc` faltar ou for 0; imputação + indicador.
-- **Elegibilidade:** T0 → regressão, classificação e clustering.
+- **Elegibilidade:** T0 -> regressão, classificação e clustering.
 
 ### 8. `has_delinquency` - já teve atrasos (Soares, proposta)
 
@@ -137,7 +137,7 @@ T4 concessão. A regressão prevê em T0, a classificação em T4 e o clustering
 - **Motivo:** na EDA, 80,8% dos mutuários têm 0; a informação útil é ter ou não ter atrasos, e
   o critério de Tukey não se aplica à contagem (IQR = 0).
 - **Valores em falta:** NaN se `delinq_2yrs` faltar (não se assume 0); imputação + indicador.
-- **Elegibilidade:** T0 → regressão, classificação e clustering.
+- **Elegibilidade:** T0 -> regressão, classificação e clustering.
 
 ### 9. `has_public_record` - tem registos públicos (Soares, proposta)
 
@@ -146,7 +146,7 @@ T4 concessão. A regressão prevê em T0, a classificação em T4 e o clustering
 - **Motivo:** registos públicos (falências, penhoras) são um sinal de risco; 84,5% dos
   mutuários têm 0, por isso o indicador é mais estável do que a contagem.
 - **Valores em falta:** NaN se `pub_rec` faltar; imputação + indicador.
-- **Elegibilidade:** T0 → regressão, classificação e clustering.
+- **Elegibilidade:** T0 -> regressão, classificação e clustering.
 
 ### 10. `total_util` - utilização total do crédito (Soares, proposta)
 
@@ -155,5 +155,5 @@ T4 concessão. A regressão prevê em T0, a classificação em T4 e o clustering
 - **Motivo:** utilização de todo o crédito, não só do rotativo. As duas colunas estão quase
   perfeitamente correlacionadas (ρ = 0,98), por isso só o rácio acrescenta informação.
 - **Valores em falta:** NaN se `tot_hi_cred_lim` faltar ou for 0; imputação + indicador.
-- **Elegibilidade:** T0, mas as colunas do *bureau* só existem a partir de 2012 → só regressão
+- **Elegibilidade:** T0, mas as colunas do *bureau* só existem a partir de 2012 -> só regressão
   (no treino da classificação, 2007–2011, estão vazias).
