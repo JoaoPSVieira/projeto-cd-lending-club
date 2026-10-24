@@ -320,11 +320,12 @@ FEATURES = [
         formula="100 × tot_cur_bal / tot_hi_cred_lim",
         rationale="Utilização de todo o crédito (cartões, empréstimos e hipotecas), e não só do "
                   "rotativo como o revol_util: mede quanto do crédito total ainda está em dívida. "
-                  "É a feature nova com mais relação com a taxa na regressão (ρ = 0,11 com o "
-                  "int_rate) e a correlação com o revol_util é só ρ = 0,39.",
+                  "Na regressão, é a feature nova com mais relação com a taxa a seguir ao "
+                  "loan_to_income (ρ = 0,11 com o int_rate), e a correlação com o revol_util é "
+                  "só ρ = 0,39.",
         missing="NaN se alguma das colunas faltar ou se tot_hi_cred_lim for <= 0 (15 casos na "
                 "regressão); imputação pela mediana do treino + indicador. Valores acima de 100% "
-                "(saldo acima do limite, 5 536 casos) são reais e ficam; o clipping aos "
+                "(saldo acima do limite, 5 536 casos) ficam; o clipping aos "
                 "percentis do treino limita os extremos.",
         moment="T0",
         # As duas colunas são das 37 do bureau que só existem a partir de 2012
