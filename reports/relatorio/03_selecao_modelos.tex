@@ -1,0 +1,157 @@
+\section{Seleção de Modelos}
+\label{sec:modelos}
+
+Esta secção define as \textit{features} novas, os modelos candidatos, o plano de modelos de cada tarefa, a estratégia de validação, as métricas e o orçamento computacional. As decisões baseiam-se na formulação do problema (Secção~\ref{sec:formulacao}) e na análise exploratória (Secção~\ref{sec:eda}) e não usam o período de teste. Os modelos são treinados e comparados na Parte~2.
+
+
+\subsection{Engenharia de \textit{features}}
+\label{sec:mod-features}
+
+Foram criadas dez \textit{features} (Tabelas~\ref{tab:mod-features} e~\ref{tab:mod-fichas}), cada uma motivada por uma conclusão da análise exploratória ou por uma regra do enunciado. Seguem três regras comuns:
+
+\begin{itemize}
+  \item \textbf{Herança da elegibilidade.} Uma \textit{feature} só existe a partir do momento em que existem todas as colunas de onde vem. Tudo o que usa \texttt{installment} (T2, \textit{pricing}) ou \texttt{issue\_d} (T4, concessão) fica fora da regressão, que prevê em T0; o enunciado proíbe explicitamente, por exemplo, o rácio prestação/rendimento na regressão. O código verifica esta regra: se uma \textit{feature} de uma tarefa usar uma coluna proibida nessa tarefa, a construção do \textit{pipeline} dá erro.
+  \item \textbf{Dentro do \textit{pipeline}.} As \textit{features} são calculadas linha a linha e não aprendem nada com os dados. Mesmo assim, o seu cálculo é o primeiro passo do \textit{pipeline} de cada modelo, antes do pré-processamento, para ser aplicado sempre da mesma forma no treino, na validação e no teste.
+  \item \textbf{Valores em falta.} Uma divisão por zero ou por um valor negativo, uma data impossível ou uma coluna de origem em falta dão um valor em falta, e nunca infinito nem zero. Esses valores são depois tratados como os das restantes colunas: imputação pela mediana do treino de cada \textit{fold}, com um indicador de ``em falta''; a limitação aos percentis 0,5 e 99,5 do treino controla os rácios extremos.
+\end{itemize}
+
+\begin{table*}[t]
+\caption{Features novas: fórmula, momento a partir do qual existem e tarefas em que são elegíveis (R: regressão; C: classificação; Cl: clustering)}
+\label{tab:mod-features}
+\centering
+\footnotesize
+\begin{tabular}{|l|l|c|c|c|c|}
+\hline
+\textbf{\textit{Feature}} & \textbf{Fórmula (colunas de origem)} & \textbf{Momento} & \textbf{R} & \textbf{C} & \textbf{Cl} \\
+\hline
+\texttt{loan\_to\_income}        & \texttt{loan\_amnt} / \texttt{annual\_inc} & T0 & \checkmark & \checkmark & \checkmark \\
+\texttt{installment\_to\_income} & $100 \times$ \texttt{installment} / (\texttt{annual\_inc}/12) & T2 & & \checkmark & \\
+\texttt{dti\_with\_loan}         & \texttt{dti} + \texttt{installment\_to\_income} & T2 & & \checkmark & \\
+\texttt{credit\_history\_years}  & (\texttt{issue\_d} $-$ \texttt{earliest\_cr\_line}) em anos & T4 & & \checkmark & \\
+\texttt{issue\_year}             & ano de \texttt{issue\_d} & T4 & & \checkmark\textsuperscript{*} & \\
+\texttt{revol\_to\_income}       & \texttt{revol\_bal} / \texttt{annual\_inc} & T0 & \checkmark & \checkmark & \checkmark \\
+\texttt{open\_acc\_ratio}        & \texttt{open\_acc} / \texttt{total\_acc} & T0 & \checkmark & \checkmark & \checkmark \\
+\texttt{has\_delinquency}        & 1 se \texttt{delinq\_2yrs} $\geq 1$ & T0 & \checkmark & \checkmark & \checkmark \\
+\texttt{has\_public\_record}     & 1 se \texttt{pub\_rec} $\geq 1$ & T0 & \checkmark & \checkmark & \checkmark \\
+\texttt{total\_util}             & $100 \times$ \texttt{tot\_cur\_bal} / \texttt{tot\_hi\_cred\_lim} & T0 & \checkmark & & \\
+\hline
+\multicolumn{6}{|l|}{\textsuperscript{*} Condicional: o enunciado permite a data de concessão no classificador quando justificada.} \\
+\hline
+\end{tabular}
+\end{table*}
+
+\begin{table*}[t]
+\caption{Motivo e tratamento dos valores em falta de cada feature}
+\label{tab:mod-fichas}
+\centering
+\footnotesize
+\begin{tabular}{|p{0.2\textwidth}|p{0.47\textwidth}|p{0.25\textwidth}|}
+\hline
+\textbf{\textit{Feature}} & \textbf{Motivo} & \textbf{Valores em falta} \\
+\hline
+\texttt{loan\_to\_income} & O mesmo montante é um esforço diferente para rendimentos diferentes; montante e rendimento estão correlacionados ($\rho = 0{,}50$), mas nenhum mede o esforço sozinho. & Em falta se o rendimento faltar ou for $\leq 0$. \\
+\hline
+\texttt{installment\_to\_income} & Peso da prestação no orçamento mensal (na mesma unidade do DTI); a prestação em valor absoluto não tem relação visível com o \textit{default}. & Em falta se o rendimento faltar ou for $\leq 0$. \\
+\hline
+\texttt{dti\_with\_loan} & O DTI da LendingClub exclui o empréstimo pedido; somar a nova prestação dá o endividamento depois de o receber. & Em falta se alguma origem faltar. \\
+\hline
+\texttt{credit\_history\_years} & Um historial curto dá menos informação sobre o mutuário; o enunciado pede, no classificador, a antiguidade relativa a \texttt{issue\_d}. & Em falta se uma data faltar ou se a diferença for negativa. \\
+\hline
+\texttt{issue\_year} & Capta mudanças de política e de contexto (a população muda entre 2007--2011 e 2013--2014). & Sem valores em falta. \\
+\hline
+\texttt{revol\_to\_income} & Peso da dívida rotativa (sobretudo cartões) face ao rendimento. & Em falta se o rendimento faltar ou for $\leq 0$. \\
+\hline
+\texttt{open\_acc\_ratio} & Distingue muitas contas ativas de um historial longo com contas fechadas; retira a escala comum de \texttt{open\_acc} e \texttt{total\_acc} ($\rho = 0{,}67$). & Em falta se \texttt{total\_acc} faltar ou for 0. \\
+\hline
+\texttt{has\_delinquency} & 80,8\% têm zero atrasos; a informação útil é ter ou não ter. & Em falta se a origem faltar (não se assume 0). \\
+\hline
+\texttt{has\_public\_record} & 84,5\% têm zero registos; registos públicos (falências, penhoras) são um sinal de risco. & Em falta se a origem faltar. \\
+\hline
+\texttt{total\_util} & Utilização de todo o crédito; saldo e limite totais são quase iguais ($\rho = 0{,}98$) e só o rácio acrescenta informação. Colunas do \textit{bureau} só desde 2012, logo só na regressão. & Em falta se o limite faltar ou for 0. \\
+\hline
+\end{tabular}
+\end{table*}
+
+% \sloppy: deixa os nomes longos em \texttt passarem para a linha seguinte
+{\sloppy
+Há três casos que exigem cuidado na seleção. Primeiro, \texttt{dti\_with\_loan} é uma combinação linear de \texttt{dti} e \texttt{installment\_to\_income}: nos modelos lineares e no kNN usa-se apenas uma das duas, enquanto nas árvores podem ficar ambas. Segundo, \texttt{issue\_year} tem de extrapolar para 2015, que não existe no treino; como o \textit{pipeline} limita cada variável aos percentis do treino, um ano posterior é tratado como o último ano do treino, e a validação temporal, em que cada \textit{fold} valida um ano ausente do seu treino, mostra se a variável ajuda. Terceiro, na regressão a antiguidade do crédito não é calculada a partir de \texttt{issue\_d}, que é posterior ao pedido; usa-se \texttt{mo\_sin\_old\_rev\_tl\_op}, calculada pelo \textit{bureau}. A decisão final sobre as \textit{features} a manter é tomada dentro da validação cruzada, nunca com o teste.
+\par}
+
+\subsection{Modelos candidatos}
+\label{sec:mod-candidatos}
+
+Os modelos seguem os requisitos da Parte~2 e as conclusões da análise exploratória: as relações não lineares favorecem árvores e \textit{ensembles}; a redundância entre variáveis pede regularização; o desequilíbrio das classes pede ponderação; e o volume de dados (até 370\,278 empréstimos na regressão) limita os métodos mais lentos.
+
+\begin{itemize}
+  \item \textbf{kNN, implementado de raiz em NumPy.} Modelo não paramétrico, sem pressupostos sobre a forma da relação; serve de referência local. É sensível à escala, que o \textit{pipeline} padroniza, e às variáveis irrelevantes, e o custo de previsão cresce com o tamanho do treino, pelo que na regressão é treinado numa amostra.
+  \item \textbf{Modelos lineares regularizados:} regressão \textit{Ridge} (R), isto é, regressão linear com regularização L2, equivalente à estimativa MAP com uma distribuição \textit{a priori} gaussiana nos pesos, e regressão logística com penalização L2 (C). São rápidos e interpretáveis, e a penalização estabiliza os coeficientes perante os pares quase redundantes encontrados na análise exploratória. Na classificação usa-se ponderação das classes.
+  \item \textbf{Árvore de decisão} (R e C). Capta relações não lineares e interações, como a queda do \textit{default} concentrada nos FICO mais baixos ou a relação em J com a utilização, sem exigir transformações, e é interpretável. A profundidade é controlada para evitar sobreajustamento.
+  \item \textbf{\textit{Bagging}: \textit{Random Forest}} (R e C). Reduz a variância das árvores, é robusta a valores extremos e fornece importâncias das variáveis.
+  \item \textbf{\textit{Boosting}: LightGBM} (R e C). Variante do \textit{gradient boosting} que agrupa os valores em histogramas e faz crescer as árvores folha a folha, o que a torna eficiente em centenas de milhares de linhas; usa paragem antecipada (\textit{early stopping}) e é, em geral, dos modelos mais fortes em dados tabulares.
+  \item \textbf{\textit{Deep learning}: rede densa (MLP) em Keras/TensorFlow} (R e C). Os dados são tabulares, sem estrutura espacial nem sequencial, pelo que redes convolucionais ou recorrentes não se justificam e não há modelos pré-treinados adequados para \textit{transfer learning}. Usam-se duas a três camadas escondidas com ReLU, \textit{dropout} e paragem antecipada, com saída linear na regressão e sigmoide na classificação (entropia cruzada ponderada pelas classes).
+  \item \textbf{Clustering:} \textit{k-means} e modelo de mistura gaussiana sobre o perfil do mutuário em T0 (por exemplo, FICO, DTI, utilização, antiguidade e \texttt{loan\_to\_income}), fazendo variar o número de grupos entre 2 e 10; para os estados (51 observações agregadas), \textit{k-means} e clustering hierárquico.
+\end{itemize}
+
+Dos métodos estudados, ficaram de fora o SVM e o Naive Bayes. O custo de treino do SVM cresce mais do que linearmente com o número de exemplos, o que o torna pouco adequado a conjuntos desta dimensão (até 370\,278 empréstimos). O Naive Bayes assume que as variáveis são independentes, o que a análise exploratória contraria (por exemplo, o saldo e o limite totais têm $\rho = 0{,}98$).
+
+
+\subsection{Plano tarefa-modelo}
+
+A Tabela~\ref{tab:mod-plano} resume, para cada família, o modelo usado em cada tarefa e os hiperparâmetros a afinar. Os dois modelos não \textit{ensemble} exigidos para cada tarefa são o modelo linear regularizado e a árvore de decisão.
+
+\begin{table*}[t]
+\caption{Plano tarefa--modelo e hiperparâmetros a afinar}
+\label{tab:mod-plano}
+\centering
+\footnotesize
+\begin{tabular}{|p{0.15\textwidth}|p{0.2\textwidth}|p{0.22\textwidth}|p{0.33\textwidth}|}
+\hline
+\textbf{Família} & \textbf{Regressão} & \textbf{Classificação} & \textbf{Hiperparâmetros} \\
+\hline
+kNN (NumPy) & kNN regressor & kNN classificador & $k \in \{5, 15, 31, 51, 101\}$; pesos uniformes ou pela distância \\
+\hline
+Linear & \textit{Ridge} & Regressão logística (L2, classes ponderadas) & força da regularização (6 valores de $10^{-3}$ a $10^{2}$) \\
+\hline
+Árvore & Árvore de regressão & Árvore de classificação & profundidade $\in \{4, 6, 8, 12\}$; mínimo por folha $\in \{50, 200\}$ \\
+\hline
+\textit{Bagging} & \textit{Random Forest} & \textit{Random Forest} & 300 árvores; variáveis por divisão $\in \{\sqrt{p}, 0{,}3p\}$; mínimo por folha $\in \{10, 50\}$ \\
+\hline
+\textit{Boosting} & LightGBM & LightGBM & taxa de aprendizagem $\in \{0{,}05; 0{,}1\}$; folhas $\in \{15, 31, 63\}$; paragem antecipada \\
+\hline
+\textit{Deep learning} & MLP, saída linear & MLP, saída sigmoide & 3 arquiteturas (64; 128--64; 256--128--64) $\times$ 2 taxas de aprendizagem \\
+\hline
+\end{tabular}
+\end{table*}
+
+
+\subsection{Estratégia de validação}
+
+Os modelos vão prever empréstimos posteriores aos do treino, e a análise exploratória mostrou que a população muda ao longo do tempo. Por isso, a validação respeita a ordem temporal: validação cruzada com janela expansível, em que cada \textit{fold} treina com todos os períodos anteriores e valida no período seguinte, mantendo juntos os empréstimos do mesmo período. Na regressão há seis \textit{folds} trimestrais em 2013--2014 (o primeiro treina em 2013T1--T2 e valida em 2013T3; o último valida em 2014T4); na classificação há três \textit{folds} anuais, que validam 2009, 2010 e 2011. Uma divisão aleatória misturaria empréstimos de períodos diferentes e daria uma estimativa otimista.
+
+Em cada \textit{fold}, todo o \textit{pipeline} (cálculo das \textit{features}, pré-processamento e modelo) é ajustado apenas na parte de treino e aplicado à validação sem novo ajuste; a ponderação ou reamostragem das classes também é feita só no treino de cada \textit{fold}. Os hiperparâmetros são escolhidos pela média da métrica principal nos \textit{folds}, e a variação entre \textit{folds} é reportada; na classificação, o limiar de decisão é também escolhido na validação. Todos os modelos de uma tarefa usam exatamente os mesmos \textit{folds} e a mesma coorte, para que a comparação seja justa. No fim, cada modelo escolhido é ajustado em todo o treino e avaliado uma única vez no teste de 2015.
+
+
+\subsection{Métricas}
+
+As métricas seguem os critérios de sucesso definidos antes da análise (Secção~\ref{sec:sucesso}):
+\begin{itemize}
+  \item \textbf{Regressão.} MAE como métrica principal, por estar na unidade da taxa (pontos percentuais) e ser robusto a erros extremos; RMSE, que penaliza mais os erros grandes; e $R^2$. As \textit{baselines} são a mediana do treino e a mediana por prazo; esta última é exigente, dado que o prazo, sozinho, separa a taxa em mais de 4 pontos percentuais.
+  \item \textbf{Classificação.} F1 \textit{macro} e AUC como métricas principais: o F1 \textit{macro} dá o mesmo peso às duas classes, e a AUC avalia a ordenação do risco independentemente do limiar. O \textit{recall} da classe \textit{Default} é analisado à parte; reportam-se também a matriz de confusão, a precisão, o \textit{recall} e o F1 (\textit{macro} e \textit{micro}) e a \textit{accuracy}, que não é usada como critério (prever sempre \textit{Good standing} daria 87,7\%). As \textit{baselines} são a classe maioritária e a taxa de \textit{default} do grau, que a análise exploratória mostrou separar bem o risco (de 5,9\% a 35,9\%).
+  \item \textbf{Clustering.} Método do cotovelo (inércia do \textit{k-means}) e silhueta para escolher o número de grupos; índices de Davies--Bouldin e de Dunn para comparar agrupamentos; estabilidade dos grupos quando se muda a semente ou a amostra (índice de Rand ajustado); e interpretação dos grupos nas variáveis originais.
+\end{itemize}
+
+
+\subsection{Orçamento computacional}
+
+O trabalho é feito em computadores pessoais. Para que cada família caiba em cerca de uma hora de computação, limitou-se a procura de hiperparâmetros à grelha da Tabela~\ref{tab:mod-plano}: 40 configurações no total, o que dá cerca de 240 ajustes na regressão (40 configurações $\times$ 6 \textit{folds}) e 120 na classificação (40 $\times$ 3). Os modelos mais caros têm medidas próprias:
+\begin{itemize}
+  \item \textbf{kNN:} na regressão, cada \textit{fold} usa uma amostra aleatória de 50\,000 empréstimos do seu treino; as distâncias são calculadas por blocos e uma única vez para o maior $k$, sendo reutilizadas para os restantes valores de $k$. Na classificação, o treino (31\,522 empréstimos) é usado por inteiro.
+  \item \textbf{\textit{Boosting} e MLP:} paragem antecipada (no máximo 500 iterações e 50 épocas, respetivamente), com uma parte do treino de cada \textit{fold} reservada para a paragem.
+  \item \textbf{\textit{Random Forest}:} número fixo de árvores (300), cada uma treinada numa amostra de 30\% do treino do \textit{fold}, e mínimo de exemplos por folha, para limitar o tempo e a memória.
+\end{itemize}
+Se uma família exceder o orçamento, a grelha é substituída por uma procura aleatória com o mesmo número de avaliações. Os tempos efetivos são reportados na Parte~2.
+
+
+\subsection{Amostragem reprodutível}
+
+Todas as amostras usam a mesma semente (42) e são aleatórias. Nunca se usam as primeiras linhas dos ficheiros, que estão ordenados por data e corresponderiam aos empréstimos mais antigos. As amostras são tiradas só depois da divisão temporal e dentro do treino de cada \textit{fold}, pelo que a validação e o teste nunca são amostrados nem reequilibrados. Até aqui, as amostras foram usadas apenas nas figuras com muitos pontos e no UMAP (20\,000 e 15\,000 empréstimos, esta última estratificada pela classe para manter os 12,3\% de \textit{default}). Na Parte~2 serão usadas no kNN da regressão (50\,000 empréstimos por \textit{fold}) e nos métodos de clustering com custo quadrático, como o hierárquico e o cálculo da silhueta (20\,000 mutuários). As sementes dos modelos (\texttt{random\_state} no scikit-learn e no LightGBM, e a semente do TensorFlow) são igualmente fixas.

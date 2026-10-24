@@ -1,0 +1,157 @@
+\subsection{Análise exploratória}
+\label{sec:eda}
+
+A análise exploratória usou apenas dados de desenvolvimento, separados do teste final antes de qualquer análise. Na regressão, analisaram-se os 370\,278 empréstimos de 2013--2014 que constituem o treino desta tarefa. Na classificação, usaram-se os 31\,522 empréstimos a 36 meses de 2007--2011 que constituem o treino, dos quais 12,3\% entraram em \textit{default}. Os empréstimos de 2015 não foram observados. As figuras com muitos pontos e o UMAP usam amostras aleatórias com semente fixa. O código, as tabelas e todas as figuras estão em \texttt{notebooks/\allowbreak 02\_eda.ipynb}.
+
+\subsubsection{Distribuições e valores atípicos}
+
+A Tabela~\ref{tab:eda-descritiva} e a Fig.~\ref{fig:eda-hist} resumem as distribuições das variáveis da regressão. A taxa de juro tem mediana de 13,98\% e uma distribuição quase simétrica (assimetria de 0,34), mas concentrada em valores discretos, visíveis como picos no histograma, porque as taxas resultam de uma grelha de preços por subgrau. As variáveis monetárias têm caudas longas à direita. O rendimento anual tem mediana de 64\,601~USD, mas chega a 7,5 milhões (assimetria de 26,2), e o mesmo acontece com os saldos e os limites de crédito, que ficam aproximadamente simétricos em escala logarítmica. As contagens de incidentes são quase sempre nulas: 80,8\% dos mutuários não têm atrasos nos últimos dois anos e 84,5\% não têm registos públicos.
+
+\begin{table*}[!t]
+\caption{Estatística descritiva das principais variáveis da regressão (2013--2014, 370\,278 empréstimos)}
+\label{tab:eda-descritiva}
+\centering
+\footnotesize
+\begin{tabular}{|l|r|r|r|r|r|r|}
+\hline
+\textbf{Variável} & \textbf{Mediana} & \textbf{p1} & \textbf{p99} & \textbf{Máximo} &
+\textbf{Assimetria} & \textbf{\% em falta} \\
+\hline
+\texttt{int\_rate} (\%)    & 13,98     & 6,03     & 24,99     & 26,06         & 0,34    & 0    \\
+\texttt{loan\_amnt} (USD)  & 13\,000   & 2\,000   & 35\,000   & 35\,000       & 0,69    & 0    \\
+\texttt{annual\_inc} (USD) & 64\,601   & 20\,000  & 248\,000  & 7\,500\,000   & 26,24   & 0    \\
+\texttt{dti}               & 17,34     & 2,26     & 34,96     & 39,99         & 0,19    & 0    \\
+\texttt{fico\_range\_low}  & 685       & 660      & 790       & 845           & 1,37    & 0    \\
+\texttt{revol\_util} (\%)  & 57,8      & 4,1      & 98,1      & 892,3         & $-0{,}08$ & 0,05 \\
+\hline
+\end{tabular}
+\end{table*}
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=\textwidth,height=0.8\textheight,keepaspectratio]{sections/figures/reg_histogramas.png}
+\caption{Distribuições das variáveis da regressão (2013--2014). As variáveis monetárias estão em escala $\log_{10}(1+x)$; nas variáveis assinaladas, os valores acima do percentil 99,5 foram omitidos apenas no gráfico.}
+\label{fig:eda-hist}
+\end{figure*}
+
+Os limites de política da plataforma são visíveis nos dados, o montante não ultrapassa 35\,000~USD, o DTI fica abaixo de 40 e o FICO começa em 660, concentrando-se junto desse mínimo. A amostra tem apenas empréstimos aceites e dentro das regras de concessão, pelo que os modelos não devem ser aplicados fora desse domínio.
+
+Pelo critério de Tukey ($1{,}5 \times$ IQR), 4,2\% dos rendimentos ficam acima de 156\,750~USD e 9,4\% dos valores de crédito disponível nos cartões ficam acima da barreira superior. São valores plausíveis e não são removidos. O \textit{pipeline} aplica $\log_{10}(1+x)$ às variáveis monetárias e limita todas as variáveis numéricas aos percentis 0,5 e 99,5 do treino, o que também neutraliza os poucos valores extremos encontrados (por exemplo, uma utilização do crédito rotativo de 892\%). Em \texttt{delinq\_2yrs} e \texttt{pub\_rec}, o intervalo interquartil é nulo e o critério não se aplica. Estas variáveis são mais úteis como indicadores binários (0 vs.\ $\geq 1$). Os valores em falta são raros (no máximo 4,9\%, em \texttt{emp\_length}) e o seu tratamento foi descrito na secção anterior.
+
+\subsubsection{Relações com a taxa de juro}
+
+As variáveis mais associadas à taxa medem a qualidade do crédito e a utilização dos cartões. São as únicas com correlação de Spearman superior a 0,3 em valor absoluto (Fig.~\ref{fig:eda-corr}): o FICO ($\rho = -0{,}42$), o crédito disponível nos cartões ($\rho = -0{,}38$) e a sua utilização ($\rho = 0{,}32$). A taxa mediana desce de forma monotónica com o FICO, de cerca de 15,5\% nos valores mais baixos para cerca de 8\% perto de 770, com uma descida mais acentuada nos valores altos de FICO (Fig.~\ref{fig:eda-taxa}, à esquerda). Mesmo assim, para o mesmo FICO, as taxas variam muito, pelo que nenhuma variável isolada determina a taxa. As restantes variáveis, incluindo o DTI e o rendimento, têm associações fracas ($|\rho| < 0{,}3$).
+
+\begin{figure*}[!t]
+\centering
+\begin{minipage}[c]{0.49\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{sections/figures/reg_fico_range_low_vs_rate.png}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.49\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{sections/figures/reg_rate_por_term.png}
+\end{minipage}
+\caption{Taxa de juro (2013--2014). Esquerda: número de empréstimos por FICO e taxa (escala logarítmica), com a mediana da taxa em cada intervalo de FICO (linha laranja). Direita: distribuição da taxa por prazo, em meses.}
+\label{fig:eda-taxa}
+\end{figure*}
+
+O prazo é a variável categórica mais associada à taxa: os empréstimos a 60 meses (29\% do total) têm uma taxa média de 17,1\%, contra 12,8\% a 36 meses (+4,3 pontos percentuais, p.p.), e as distribuições sobrepõem-se pouco (Fig.~\ref{fig:eda-taxa}, à direita). Isto confirma a relevância da \textit{baseline} que prevê a mediana por prazo (Secção~\ref{sec:sucesso}). A finalidade também está associada à taxa, cuja média vai de 12,5\% em \texttt{credit\_card} (24\% dos empréstimos) a 18,5\% em \texttt{small\_business} e 19,2\% em \texttt{wedding}; contudo, a variação dentro de cada finalidade é comparável à variação entre finalidades. O tipo de habitação tem um efeito pequeno (14,5\% em arrendamento contra 13,7\% com hipoteca).
+
+
+\subsubsection{Relações com o \textit{default}}
+
+A taxa de \textit{default} cresce de forma monotónica com o grau atribuído pela plataforma: de 5,9\% no grau A para 35,9\% no grau G, ou seja, 6,1 vezes mais (Fig.~\ref{fig:eda-default}, à esquerda). Como o grau resume a avaliação de risco da própria LendingClub, a \textit{baseline} que prevê a taxa de \textit{default} de cada grau é exigente: o classificador tem de acrescentar informação ao modelo da plataforma.
+
+Isoladamente, cada variável numérica separa pouco as classes. Nos gráficos por classe, os empréstimos em \textit{default} têm, como esperado, taxas de juro e utilização do crédito mais altas e FICO e rendimento mais baixos, mas as distribuições das duas classes sobrepõem-se muito, e no DTI quase coincidem. Nenhuma variável tem correlação com o \textit{default} superior a 0,3 em valor absoluto.
+
+\begin{figure*}[!t]
+\centering
+\begin{minipage}[c]{0.49\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{sections/figures/cls_default_por_grade.png}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.49\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{sections/figures/cls_default_por_decil_fico_range_low.png}
+\end{minipage}
+\caption{Taxa de \textit{default} no treino da classificação (2007--2011, 36 meses). Esquerda: por grau, com o número de empréstimos; a linha vertical é a taxa global (12,3\%). Direita: por decil de FICO (mediana de cada decil); a linha horizontal é a taxa global.}
+\label{fig:eda-default}
+\end{figure*}
+
+Várias relações são não lineares. A taxa de \textit{default} desce de cerca de 21\% no decil de FICO mais baixo para cerca de 4\% no mais alto, mas a maior queda ocorre logo entre o primeiro e o segundo decil (Fig.~\ref{fig:eda-default}, à direita). Com o rendimento, a taxa desce até cerca de 100\,000~USD e estabiliza depois. Com a utilização do crédito rotativo, a relação tem forma de J: o decil de quem quase não usa crédito rotativo tem mais \textit{default} do que o seguinte, e a taxa sobe depois de forma contínua. O DTI tem uma associação fraca, com a taxa a subir apenas de cerca de 11\% para cerca de 14\% entre os decis extremos. Entre as variáveis categóricas, destaca-se \texttt{small\_business}, com o dobro da taxa global (24,1\%); o arrendamento tem mais \textit{default} do que a hipoteca (13,2\% contra 11,3\%), e o estado de verificação do rendimento quase não faz diferença (entre 10,6\% e 13,1\%). As diferenças entre grupos aqui descritas são avaliadas formalmente, com testes de hipóteses, na secção seguinte.
+
+
+\subsubsection{Associações entre variáveis}
+
+A Fig.~\ref{fig:eda-corr} mostra a correlação de Spearman entre as variáveis da regressão, escolhida por não exigir normalidade nem linearidade e por ser pouco sensível a valores extremos. Há pares quase redundantes: o saldo e o limite totais ($\rho = 0{,}98$), as duas medidas de utilização do crédito rotativo ($\rho = 0{,}81$) e a utilização dos cartões e o crédito neles disponível ($\rho = -0{,}78$). O saldo total também está associado ao número de hipotecas ($\rho = 0{,}63$). Na classificação, o montante e a prestação ($\rho = 0{,}99$) e o FICO e a taxa de juro ($\rho = -0{,}81$) contêm praticamente a mesma informação, o que mostra que a taxa é fixada, em grande parte, a partir do FICO. Esta redundância será tida em conta na seleção de variáveis, por exemplo mantendo uma variável de cada par ou usando regularização. O montante está associado ao rendimento ($\rho = 0{,}50$), o que motiva variáveis relativas, como o montante ou a prestação em proporção do rendimento. Todas estas associações são descritivas e não implicam causalidade.
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=0.7\textwidth]{sections/figures/reg_correlacao.png}
+\caption{Correlação de Spearman entre as variáveis da regressão e a taxa de juro (2013--2014). Só se escrevem os valores com $|\rho| \geq 0{,}3$.}
+\label{fig:eda-corr}
+\end{figure*}
+
+
+\subsubsection{Mudança da população ao longo do tempo}
+
+As medianas do treino da classificação e do da regressão (Tabela~\ref{tab:eda-periodos}) mostram que o perfil dos mutuários mudou entre 2007--2011 e 2013--2014: o FICO mediano desceu de 710 para 685, o DTI subiu de 13,1 para 17,3 e a utilização do crédito rotativo de 48,1\% para 57,8\%. O montante e a taxa de juro também subiram, embora parte dessa diferença se deva aos empréstimos a 60 meses, que só fazem parte do segundo período. Os limites de concessão também mudaram: em 2007--2011 há empréstimos com FICO a partir de 610 e o DTI máximo é de 29,99, contra 660 e 39,99 em 2013--2014. Esta mudança justifica a divisão temporal, porque uma divisão aleatória a esconderia. Também reforça uma limitação: o classificador, treinado em 2007--2011, será avaliado numa população diferente, pelo que o seu desempenho pode cair.
+
+\begin{table}[!t]
+\caption{Medianas nos dois períodos de treino}
+\label{tab:eda-periodos}
+\centering
+\footnotesize
+\begin{tabular}{|l|r|r|}
+\hline
+\textbf{Variável} & \textbf{2007--2011 (36 meses)} & \textbf{2013--2014 (36 e 60 meses)} \\
+\hline
+\texttt{loan\_amnt} (USD)  & 8\,000  & 13\,000 \\
+\texttt{annual\_inc} (USD) & 56\,004 & 64\,601 \\
+\texttt{dti}               & 13,09   & 17,34   \\
+\texttt{fico\_range\_low}  & 710     & 685     \\
+\texttt{revol\_util} (\%)  & 48,1    & 57,8    \\
+\texttt{open\_acc}         & 8       & 11      \\
+\texttt{emp\_length} (anos) & 4      & 7       \\
+\texttt{int\_rate} (\%)    & 11,14   & 13,98   \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{Redução de dimensionalidade}
+
+Aplicaram-se um método linear (PCA) e um não linear (UMAP) às variáveis numéricas, com o mesmo pré-processamento, ajustado apenas nos dados de desenvolvimento: $\log_{10}(1+x)$ nas variáveis com cauda longa, imputação pela mediana e padronização. O PCA foi ajustado em todos os empréstimos; o UMAP, mais lento, numa amostra de 20\,000 (regressão) e de 15\,000 empréstimos (classificação, estratificada pela classe), com 15 vizinhos e distância mínima de 0,1.
+
+\textbf{PCA.} São precisas 10 das 20 componentes para explicar 80\% da variância na regressão (Fig.~\ref{fig:eda-dimred}, à esquerda) e 7 das 14 na classificação: a informação está moderadamente espalhada, e as duas primeiras componentes explicam pouco mais de um terço da variância. Ambas são interpretáveis e semelhantes nas duas tarefas. A primeira tem pesos positivos nos limites e saldos de crédito e no número de contas (na classificação, também no montante, na prestação e no rendimento), e representa a dimensão financeira do mutuário. A segunda opõe a utilização do crédito rotativo à margem disponível nos cartões e ao FICO, e representa a pressão sobre o crédito; no mapa bidimensional do PCA, é sobretudo ao longo desta componente que a taxa de juro varia.
+
+\textbf{UMAP.} O UMAP forma algumas ilhas separadas, mas não organiza a taxa de juro nem as classes de forma mais clara do que o PCA: nos dois mapas, os empréstimos em \textit{default} aparecem em todas as zonas, sem formar uma região própria (Fig.~\ref{fig:eda-dimred}, à direita). Ilhas separadas no UMAP surgem muitas vezes de variáveis discretas, como as contagens quase sempre nulas, e não de tipos de mutuários; além disso, as distâncias entre ilhas e o seu tamanho não têm interpretação. Não há, portanto, evidência de estrutura não linear forte associada ao desfecho nas variáveis numéricas, o que antecipa uma tarefa de classificação difícil.
+
+\begin{figure*}[!t]
+\centering
+\begin{minipage}[c]{0.49\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{sections/figures/reg_pca_scree.png}
+\end{minipage}\hfill
+\begin{minipage}[c]{0.49\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{sections/figures/cls_umap_2d.png}
+\end{minipage}
+\caption{Redução de dimensionalidade. Esquerda: variância explicada por cada componente do PCA na regressão (barras) e acumulada (linha). Direita: UMAP de uma amostra estratificada de 15\,000 empréstimos do treino da classificação, colorido pela classe.}
+\label{fig:eda-dimred}
+\end{figure*}
+
+
+\subsubsection{Síntese}
+
+Da análise exploratória resultam as seguintes conclusões para as fases seguintes:
+\begin{itemize}
+  \item \textbf{Transformações.} As caudas longas e os valores extremos das variáveis monetárias justificam $\log_{10}(1+x)$ e a limitação aos percentis 0,5--99,5 do treino; as contagens de incidentes, quase sempre nulas, são representadas como indicadores.
+  \item \textbf{Regressão.} A taxa depende de várias variáveis com associações moderadas (no máximo $|\rho| = 0{,}42$, no FICO) e do prazo (+4,3~p.p. em média a 60 meses): é necessário um modelo multivariado, e a \textit{baseline} por prazo é um termo de comparação relevante.
+  \item \textbf{Classificação.} O desequilíbrio (12,3\% de \textit{default}) exige métricas \textit{macro}, a AUC e o \textit{recall} da classe \textit{Default}, com balanceamento apenas nos \textit{folds} de treino. O grau separa bem o risco e é uma \textit{baseline} exigente; como cada variável sozinha separa pouco as classes, as expectativas de melhoria devem ser moderadas.
+  \item \textbf{Não linearidade.} As relações do \textit{default} com o FICO, o rendimento e a utilização do crédito não são lineares, o que favorece modelos baseados em árvores ou, nos modelos lineares, transformações das variáveis.
+  \item \textbf{Redundância.} Os pares quase redundantes (saldo e limite totais, montante e prestação, FICO e taxa) serão considerados na seleção de variáveis; os rácios face ao rendimento podem acrescentar informação que as variáveis absolutas não têm.
+  \item \textbf{Mudança temporal.} A população de 2013--2014 tem um perfil de crédito pior do que a de 2007--2011, o que justifica a divisão temporal e é uma limitação para a avaliação do classificador em 2015.
+\end{itemize}
+
+\FloatBarrier

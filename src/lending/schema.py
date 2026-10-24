@@ -2,15 +2,13 @@
 Schema do ficheiro accepted: o tipo de cada uma das 151 colunas e a sua conversão
 
 Motivo:
-    O tipo de cada coluna é declarado aqui, à mão, em vez de ser adivinhado pelo pandas.
+    O tipo de cada coluna é declarado aqui, em vez de ser adivinhado pelo pandas.
     Assim a conversão é igual no desenvolvimento e no teste, e uma coluna com um formato
     inesperado dá erro em vez de mudar de tipo sem ninguém reparar.
 
 Como foi decidido o tipo:
-    - Colunas preenchidas no desenvolvimento: pelo formato dos valores (verificado em todas
-      as linhas) e pelo significado no dicionário de dados.
-    - Colunas vazias no desenvolvimento (ex.: pedidos conjuntos, sec_app_*): pelo
-      significado no dicionário. Se no teste tiverem outro formato, o parser dá erro.
+    - Colunas preenchidas no desenvolvimento: pelo formato dos valores e pelo significado no dicionário de dados.
+    - Colunas vazias no desenvolvimento: pelo significado no dicionário. Se no teste tiverem outro formato, o parser dá erro.
 
 Tipos ("kind"):
     id          identificador do empréstimo -> int64
@@ -246,8 +244,8 @@ class SchemaParser:
             "blank_to_missing": before - after,
         }).loc[raw.columns]
 
-    # Métodos Privados
 
+    # Métodos Privados
     def _check_columns(self, df):
         """Confirma que df tem exatamente as colunas do schema"""
         missing = [c for c in self.schema if c not in df.columns]
@@ -258,11 +256,10 @@ class SchemaParser:
 
     def _check_no_values_lost(self, raw, parsed):
         """
-        Confirma que só o texto vazio (só espaços) passou a valor em falta
+        Confirma que só o texto vazio passou a valor em falta
 
         Nos tipos que não são texto, o número de valores preenchidos tem de ser igual
-        antes e depois. Nos de texto, a diferença tem de ser exatamente o número de
-        valores só com espaços.
+        antes e depois.
         """
         for col in raw.columns:
             before, after = raw[col].notna().sum(), parsed[col].notna().sum()
