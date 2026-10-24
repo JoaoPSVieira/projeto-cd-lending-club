@@ -1,0 +1,211 @@
+---
+title: "Testes de hipóteses"
+subtitle: "LendingClub 2007–2014 (dados de desenvolvimento)"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+# Pasta do projeto (a pasta acima de R/), para os caminhos funcionarem em qualquer computador
+raiz <- normalizePath(file.path(dirname(knitr::current_input(dir = TRUE)), ".."))
+knitr::opts_knit$set(root.dir = raiz)
+knitr::opts_chunk$set(echo = TRUE, comment = "", fig.width = 7, fig.height = 4)
+
+library(data.table)   # leitura rápida dos CSV grandes
+library(boot)         # intervalos de confiança por bootstrap
+
+SEMENTE <- 42         # a mesma semente do projeto (config.RANDOM_SEED)
+ALFA <- 0.05
+B <- 2000             # réplicas do bootstrap
+```
+
+# Objetivo e regras
+
+Fase 2 do enunciado (*Hypothesis testing*): para cada hipótese, indicar H0 e HA, justificar o
+teste e os seus pressupostos, e interpretar o resultado com o **tamanho do efeito** e a sua
+**incerteza** (intervalo de confiança a 95%). Os dados são observacionais, por isso os
+resultados mostram **associações, não causas**.
+
+- Só dados de **desenvolvimento** (2007-06 a 2014-12). O teste final (2015) nunca é usado.
+- As hipóteses sobre o *default* usam o **treino da classificação** (empréstimos de 36 meses
+  de 2007-06 a 2011-12): é o único conjunto em que o desfecho de cada empréstimo já era
+  conhecido na data de treino simulada.
+- Os dados vêm de `notebooks/02b_dados_testes_hipoteses.ipynb`, que os exporta sem alterar
+  nenhum valor.
+- Não há transformações aprendidas (imputação, escalamento, etc.): os testes usam os valores
+  limpos tal como estão. Por isso não é preciso um *pipeline* em R.
+
+**Tamanho da amostra e p-valores.** Com dezenas de milhares (ou milhões) de linhas, diferenças
+muito pequenas dão p-valores próximos de zero. Um p-valor pequeno diz que a diferença
+provavelmente não é zero, mas não diz se é grande. As conclusões apoiam-se por isso no tamanho
+do efeito e no seu intervalo de confiança.
+
+# Funções auxiliares
+
+**Correlação rank-biserial** ($r_{rb}$). Tamanho do efeito do teste de Mann-Whitney. Se $X$ é
+um valor ao acaso do grupo 1 e $Y$ um valor ao acaso do grupo 2,
+
+$$r_{rb} = P(X > Y) - P(X < Y) = 2 \cdot \frac{U}{n_1 n_2} - 1,$$
+
+onde $U$ é a estatística de Mann-Whitney. Vai de $-1$ a $1$; $0$ quer dizer que nenhum grupo
+tende a ter valores maiores. $U / (n_1 n_2)$ é a AUC: a probabilidade de um valor do grupo 1
+ser maior do que um do grupo 2 (os empates contam meio). É igual ao *delta* de Cliff, por isso
+usam-se os limiares de Romano et al. (2006): $|r| < 0{,}147$ desprezável, $< 0{,}33$ pequeno,
+$< 0{,}474$ médio, e grande a partir daí.
+
+**Intervalo de confiança por bootstrap.** Reamostra-se cada grupo com reposição, mantendo o
+tamanho de cada um (`strata`), e calcula-se o efeito em cada réplica. O intervalo a 95% são os
+percentis 2,5% e 97,5% das réplicas. Não exige nenhuma forma para a distribuição do efeito.
+
+```{r funcoes}
+# Correlação rank-biserial: x = valores do grupo 1, y = valores do grupo 2
+rank_biserial <- function(x, y) {
+  n1 <- length(x)
+  n2 <- length(y)
+  r <- rank(c(x, y))                        # empates recebem a posição média
+  u <- sum(r[seq_len(n1)]) - n1 * (n1 + 1) / 2
+  2 * u / (n1 * n2) - 1
+}
+
+# Intervalo bootstrap (percentis) do rank-biserial entre os grupos g1 e g2 de `valores`
+ic_rank_biserial <- function(valores, grupo, g1, g2, reps = B) {
+  dados <- data.frame(v = valores, g = grupo)
+  estat <- function(d, i) {
+    d <- d[i, ]
+    rank_biserial(d$v[d$g == g1], d$v[d$g == g2])
+  }
+  set.seed(SEMENTE)
+  res <- boot(dados, estat, R = reps, strata = factor(dados$g))
+  boot.ci(res, type = "perc")$percent[4:5]
+}
+
+# Classificação do tamanho do efeito (Romano et al., 2006)
+magnitude_rb <- function(r) {
+  cut(abs(r), c(0, 0.147, 0.33, 0.474, 1), include.lowest = TRUE, right = FALSE,
+      labels = c("desprezável", "pequeno", "médio", "grande"))
+}
+
+# Os resultados de cada teste juntam-se aqui, para a tabela final
+resultados <- list()
+```
+
+# Hipótese (a): DTI e *default*
+
+> Enunciado: *"Higher DTI implies higher default risk."*
+
+- **H0:** o DTI tem a mesma distribuição nos empréstimos *Default* e *Good standing*
+  ($P(X_{Default} > X_{Good}) = 0{,}5$).
+- **HA:** o DTI tende a ser **maior** nos *Default* ($P(X_{Default} > X_{Good}) > 0{,}5$).
+  O teste é **unilateral**, porque a hipótese tem uma direção.
+
+```{r a-dados}
+cls <- fread("data/processed/hipoteses/default.csv")
+# A ordem dos níveis define a direção do teste: "greater" quer dizer Default > Good standing
+cls[, target := factor(target, levels = c("Default", "Good standing"))]
+
+cls[, .(n = .N, media = mean(dti), mediana = median(dti),
+        q1 = quantile(dti, 0.25), q3 = quantile(dti, 0.75), max = max(dti)), by = target]
+```
+
+```{r a-graficos, fig.height = 3.5}
+par(mfrow = c(1, 2), mar = c(4, 4, 2, 1))
+cores <- c(Default = "#eb6834", "Good standing" = "#2a78d6")   # as cores das figuras da EDA
+
+# Distribuição do DTI em cada classe (densidade)
+dens <- lapply(split(cls$dti, cls$target), density, from = 0, to = 30)
+plot(dens[["Good standing"]], col = cores[["Good standing"]], lwd = 2, main = "DTI por classe",
+     xlab = "DTI (%)", ylab = "densidade", ylim = range(sapply(dens, function(d) d$y)))
+lines(dens[["Default"]], col = cores[["Default"]], lwd = 2)
+legend("bottom", names(cores), col = cores, lwd = 2, bty = "n", cex = 0.8)
+
+# Taxa de default por quintil de DTI (só descritivo)
+quintis <- quantile(cls$dti, 0:5 / 5)
+taxa <- cls[, .(taxa = 100 * mean(target == "Default")),
+            keyby = .(quintil = cut(dti, quintis, include.lowest = TRUE))]
+barplot(taxa$taxa, names.arg = paste0("Q", 1:5), col = cores[["Default"]], border = NA,
+        main = "Default por quintil de DTI", xlab = "quintil de DTI (Q1 = mais baixo)",
+        ylab = "% default")
+```
+
+```{r a-quintis}
+taxa   # limites de cada quintil e taxa de default
+```
+
+**Porquê o teste de Mann-Whitney (Wilcoxon rank-sum).**
+
+- Compara **dois grupos independentes** numa variável **contínua**.
+- Usa as **ordens** dos valores e não os valores, por isso não exige normalidade e não é
+  dominado por valores extremos. É o teste não paramétrico indicado no T03 para este caso.
+- Alternativa rejeitada: o teste *t* de Welch. Com esta amostra seria válido pelo teorema do
+  limite central, mas compara médias, que são mais sensíveis à forma da distribuição.
+  Mann-Whitney responde diretamente à pergunta "os *Default* tendem a ter DTI maior?".
+
+**Pressupostos.**
+
+1. **Observações independentes.** Cada linha é um empréstimo diferente. Limitação: não há
+   identificador do mutuário, e estima-se que ~0,5% dos empréstimos sejam de mutuários
+   repetidos (`docs/02_preprocessamento/duplicados.md`). É uma violação pequena.
+2. **Variável pelo menos ordinal.** O DTI é contínuo (%, com 2 casas decimais).
+3. **Interpretação.** Sem mais pressupostos, o teste compara $P(X > Y)$ com 0,5, que é o que a
+   HA diz. Só seria uma comparação de medianas se as duas distribuições tivessem a mesma forma.
+   As densidades acima têm formas parecidas, por isso a estimativa de Hodges-Lehmann (mediana
+   das diferenças entre pares) pode ler-se como a diferença típica em pontos de DTI.
+4. **Empates.** O DTI tem muitos valores repetidos, por isso o p-valor usa a aproximação normal
+   com correção para empates (`exact = FALSE`).
+
+```{r a-teste}
+teste_a <- wilcox.test(dti ~ target, data = cls, alternative = "greater", exact = FALSE)
+teste_a
+
+# Diferença de Hodges-Lehmann com intervalo bilateral a 95% (a incerteza nos dois sentidos)
+hl_a <- wilcox.test(dti ~ target, data = cls, conf.int = TRUE, exact = FALSE)
+
+x_def <- cls[target == "Default", dti]
+x_good <- cls[target == "Good standing", dti]
+rb_a <- rank_biserial(x_def, x_good)
+ic_a <- ic_rank_biserial(cls$dti, cls$target, "Default", "Good standing")
+
+data.frame(
+  medida = c("rank-biserial", "AUC = P(X_Default > X_Good)", "Hodges-Lehmann (pontos de DTI)"),
+  estimativa = round(c(rb_a, (rb_a + 1) / 2, hl_a$estimate), 3),
+  ic95_inf = round(c(ic_a[1], (ic_a[1] + 1) / 2, hl_a$conf.int[1]), 3),
+  ic95_sup = round(c(ic_a[2], (ic_a[2] + 1) / 2, hl_a$conf.int[2]), 3)
+)
+
+resultados$a <- data.frame(
+  hipotese = "(a) DTI maior nos Default",
+  dados = "treino da classificação (2007-06 a 2011-12)",
+  n = sprintf("%d Default / %d Good", length(x_def), length(x_good)),
+  teste = "Mann-Whitney unilateral",
+  p = teste_a$p.value,
+  efeito = "rank-biserial",
+  estimativa = rb_a, ic95_inf = ic_a[1], ic95_sup = ic_a[2],
+  magnitude = as.character(magnitude_rb(rb_a))
+)
+```
+
+**Interpretação.**
+
+- **Rejeita-se H0** ($p =$ `r format(teste_a$p.value, digits = 2)`): nos empréstimos em
+  *Default*, o DTI tende a ser maior.
+- **Mas o efeito é `r magnitude_rb(rb_a)`**: $r_{rb} =$ `r round(rb_a, 3)` (IC 95%
+  `r round(ic_a[1], 3)` a `r round(ic_a[2], 3)`). Escolhendo ao acaso um empréstimo em
+  *Default* e um *Good standing*, o primeiro tem o DTI maior em
+  `r round(100 * (rb_a + 1) / 2, 1)`% dos casos, pouco acima dos 50% que se esperariam sem
+  nenhuma relação. A diferença típica é de `r round(hl_a$estimate, 2)` pontos de DTI
+  (IC 95% `r round(hl_a$conf.int[1], 2)` a `r round(hl_a$conf.int[2], 2)`).
+- O gráfico da direita mostra a mesma relação: a taxa de *default* sobe de forma monótona com o
+  DTI, de `r round(taxa$taxa[1], 1)`% no quintil mais baixo para `r round(taxa$taxa[5], 1)`%
+  no mais alto.
+- **O que significa para os modelos:** o DTI tem informação sobre o risco, mas sozinho separa
+  mal as classes. É de esperar que só seja útil em conjunto com outras variáveis (FICO, taxa de
+  juro, *grade*).
+- **Nota sobre os dados:** o DTI máximo é `r max(cls$dti)`%. Não há nenhum empréstimo com DTI
+  de 30% ou mais, o que indica um limite da política de crédito nestes anos: os requerentes com
+  DTI mais alto foram rejeitados e não estão na amostra. A relação observada é a que existe **entre os aprovados**, e pode ser mais
+  fraca do que na população de requerentes (*selection bias*).
+- **Associação, não causalidade:** um DTI mais alto está associado a mais *default*, mas os
+  dados não mostram que o DTI cause o *default*. Ambos podem depender de outros fatores, como o
+  rendimento ou a situação profissional.
