@@ -181,7 +181,7 @@ def write_exclusions_markdown(logs, path, title="Tabela de exclusões",
     lines = [
         f"# {title}",
         "",
-        f"_Gerado automaticamente por `notebooks/{notebook}` — não editar à mão._",
+        f"_Gerado automaticamente por `notebooks/{notebook}` - não editar à mão._",
         "",
         f"- Gerado em: {date.today().isoformat()}",
         "- Tipo \"remoção\": as linhas deixam de existir. Tipo \"partição\": as linhas são "

@@ -362,7 +362,7 @@ class SchemaReport:
         lines = [
             f"# Schema: {dataset}",
             "",
-            f"_Gerado automaticamente por `notebooks/{notebook}` — não editar à mão._",
+            f"_Gerado automaticamente por `notebooks/{notebook}` - não editar à mão._",
             "",
             f"- Conjunto descrito: {dataset}, {n_rows:,} linhas x {len(description)} colunas",
             f"- Gerado em: {date.today().isoformat()}",

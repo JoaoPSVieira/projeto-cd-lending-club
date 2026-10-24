@@ -36,26 +36,26 @@ com valores em falta não contam.
 | Rendimento acima de 1 milhão | `annual_inc` > 1 000 000 | 59 | Fica (secção 5) |
 | Rendimento abaixo de 4 000 | `annual_inc` < 4 000 | 6 | Fica |
 | DTI igual a 0 | `dti` = 0 | 363 | Fica (possível: sem outras dívidas) |
-| FICO fora do intervalo de 4 pontos | `fico_range_high` − `fico_range_low` ≠ 4, exceto 845–850 | 0 | — |
+| FICO fora do intervalo de 4 pontos | `fico_range_high` − `fico_range_low` ≠ 4, exceto 845–850 | 0 | - |
 
 ### 2.2 Consistência (várias colunas)
 
 | Verificação | Regra | Linhas | Decisão |
 |---|---|---:|---|
-| Financiado acima do pedido | `funded_amnt` > `loan_amnt` | 0 | — |
-| Investidores acima do financiado | `funded_amnt_inv` > `funded_amnt` | 0 | — |
-| Grau diferente do subgrau | `grade` ≠ 1.ª letra de `sub_grade` | 0 | — |
+| Financiado acima do pedido | `funded_amnt` > `loan_amnt` | 0 | - |
+| Investidores acima do financiado | `funded_amnt_inv` > `funded_amnt` | 0 | - |
+| Grau diferente do subgrau | `grade` ≠ 1.ª letra de `sub_grade` | 0 | - |
 | Taxa de 6% num grau B a G | `int_rate` = 6,00 e `grade` em B…G | 139 | **Excluídos** (secção 3) |
 | Prestação diferente da fórmula | \|`installment` − fórmula de amortização\| > 1 USD | 203 | **Excluídos** (secção 3) |
-| Crédito mais antigo depois da concessão | `earliest_cr_line` ≥ `issue_d` | 0 | — |
+| Crédito mais antigo depois da concessão | `earliest_cr_line` ≥ `issue_d` | 0 | - |
 | Contas abertas acima do total | `open_acc` > `total_acc` | 2 | Fica, documentada |
-| Registos públicos incoerentes | `pub_rec_bankruptcies` + `tax_liens` > `pub_rec` | 0 | — |
+| Registos públicos incoerentes | `pub_rec_bankruptcies` + `tax_liens` > `pub_rec` | 0 | - |
 | Atraso recente sem data recente | `delinq_2yrs` > 0 e `mths_since_last_delinq` > 24 | 272 | Fica, documentada |
 | Data recente sem atraso recente | `delinq_2yrs` = 0 e `mths_since_last_delinq` < 24 | 40 | Fica, documentada |
 | Saldo sem hipoteca acima do saldo total | `total_bal_ex_mort` > `tot_cur_bal` | 419 | Fica, documentada |
 | Saldo rotativo sem utilização | `revol_bal` > 0 e `revol_util` = 0 | 372 | Fica, documentada |
 | Utilização sem saldo rotativo | `revol_bal` = 0 e `revol_util` > 0 | 83 | Fica, documentada |
-| Pagamento antes da concessão | `last_pymnt_d` < `issue_d` | 0 | — |
+| Pagamento antes da concessão | `last_pymnt_d` < `issue_d` | 0 | - |
 | Ativo depois do fim do prazo | estado ativo e `issue_d` + `term` < 2019-03 | 88 | Fica (secção 5) |
 
 As regras com 0 falhas confirmam a coerência do ficheiro nos pontos mais importantes: o

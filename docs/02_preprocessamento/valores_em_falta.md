@@ -69,7 +69,7 @@ no próprio mês).
 
 | Estado | Colunas | Significado |
 |---|---:|---|
-| Completas (sem valores em falta) | 40 | — |
+| Completas (sem valores em falta) | 40 | - |
 | Parciais | 80 | 47 não registado, 8 sem evento, 4 sem denominador, 21 só alguns empréstimos |
 | Vazias no desenvolvimento | 31 | 15 só pedidos conjuntos, 12 não registado, 2 sem evento, 2 sem denominador |
 | **Total** | **151** | |
