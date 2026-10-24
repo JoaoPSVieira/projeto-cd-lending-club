@@ -1,9 +1,10 @@
 """
-Dados para os testes de hipóteses (feitos em R, em R/testes_hipoteses.Rmd)
+Dados para o trabalho em R: testes de hipóteses (R/testes_hipoteses.Rmd) e pipeline com PCA
+(R/pipeline_pca.Rmd)
 
 Motivo:
     O R não lê os pickles do pandas. Esta classe escolhe, nos conjuntos de desenvolvimento já
-    limpos, só as colunas que cada teste usa e grava-as em CSV. Nenhum valor é alterado: as
+    limpos, só as colunas que cada análise usa e grava-as em CSV. Nenhum valor é alterado: as
     decisões de limpeza já foram tomadas no pré-processamento.
 
 Regras:
@@ -15,6 +16,8 @@ Tabelas:
     default    (classificacao_treino.pkl)      dti, purpose, target
     aceites vs rejeitados (aceites_dev.pkl + rejeitados_dev.pkl):
                group, amount, risk_score, date, same_scale_period
+    pipeline   (classificacao_treino.pkl)      issue_d, colunas numéricas indicadas, target
+               (issue_d define os folds da validação temporal)
 
 Aceites vs rejeitados, colunas equivalentes:
     amount      loan_amnt (aceites) / amount_requested (rejeitados). Limitação: o loan_amnt
@@ -51,6 +54,7 @@ class HypothesisDataExporter:
     Methods:
         default_table(cls_train): Tabela das hipóteses sobre o default
         accepted_vs_rejected(accepted_dev, rejected_dev): Tabela aceites vs rejeitados
+        pipeline_table(cls_train, columns): Tabela do pipeline em R
         export(df, name): Grava uma tabela em CSV
     """
 
@@ -100,6 +104,18 @@ class HypothesisDataExporter:
         table = pd.concat([accepted, rejected], ignore_index=True)
         table["same_scale_period"] = table["date"] < SAME_SCALE_END
         return table
+
+    @staticmethod
+    def pipeline_table(cls_train, columns):
+        """
+        Parameters:
+            cls_train (pd.DataFrame): Treino da classificação (classificacao_treino.pkl)
+            columns (list[str]): Colunas numéricas de entrada do pipeline
+
+        Returns:
+            pd.DataFrame: issue_d, as colunas indicadas e target, uma linha por empréstimo
+        """
+        return cls_train[["issue_d", *columns, config.CLASS_COL]].reset_index(drop=True)
 
     def export(self, df, name):
         """
