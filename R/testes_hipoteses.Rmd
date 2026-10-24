@@ -59,6 +59,14 @@ $< 0{,}474$ médio, e grande a partir daí.
 tamanho de cada um (`strata`), e calcula-se o efeito em cada réplica. O intervalo a 95% são os
 percentis 2,5% e 97,5% das réplicas. Não exige nenhuma forma para a distribuição do efeito.
 
+**V de Cramér.** Tamanho do efeito do teste do qui-quadrado numa tabela $r \times c$:
+
+$$V = \sqrt{\frac{\chi^2}{n \cdot (\min(r, c) - 1)}}.$$
+
+Vai de 0 (nenhuma associação) a 1 (associação perfeita) e, ao contrário do $\chi^2$, não cresce
+com o tamanho da amostra. Numa tabela com 2 colunas, $\min(r, c) - 1 = 1$, e os limiares de
+Cohen (1988) são 0,1 pequeno, 0,3 médio e 0,5 grande.
+
 ```{r funcoes}
 # Correlação rank-biserial: x = valores do grupo 1, y = valores do grupo 2
 rank_biserial <- function(x, y) {
@@ -84,6 +92,27 @@ ic_rank_biserial <- function(valores, grupo, g1, g2, reps = B) {
 # Classificação do tamanho do efeito (Romano et al., 2006)
 magnitude_rb <- function(r) {
   cut(abs(r), c(0, 0.147, 0.33, 0.474, 1), include.lowest = TRUE, right = FALSE,
+      labels = c("desprezável", "pequeno", "médio", "grande"))
+}
+
+# V de Cramér a partir de uma tabela de contingência
+cramers_v <- function(tab) {
+  chi2 <- suppressWarnings(chisq.test(tab, correct = FALSE)$statistic)
+  unname(sqrt(chi2 / (sum(tab) * (min(dim(tab)) - 1))))
+}
+
+# Intervalo bootstrap (percentis) do V de Cramér entre duas variáveis categóricas
+ic_cramers_v <- function(x, y, reps = B) {
+  dados <- data.frame(x = x, y = y)
+  estat <- function(d, i) cramers_v(table(d$x[i], d$y[i]))
+  set.seed(SEMENTE)
+  res <- boot(dados, estat, R = reps)
+  boot.ci(res, type = "perc")$percent[4:5]
+}
+
+# Classificação do V numa tabela com 2 colunas (Cohen, 1988)
+magnitude_v <- function(v) {
+  cut(v, c(0, 0.1, 0.3, 0.5, 1), include.lowest = TRUE, right = FALSE,
       labels = c("desprezável", "pequeno", "médio", "grande"))
 }
 
@@ -209,3 +238,131 @@ resultados$a <- data.frame(
 - **Associação, não causalidade:** um DTI mais alto está associado a mais *default*, mas os
   dados não mostram que o DTI cause o *default*. Ambos podem depender de outros fatores, como o
   rendimento ou a situação profissional.
+
+# Hipótese (b): `purpose` e *default*
+
+> Enunciado: *"Loan purpose affects default risk."*
+
+- **H0:** o `purpose` e o desfecho são independentes (a taxa de *default* é a mesma em todos os
+  *purposes*).
+- **HA:** não são independentes (a taxa de *default* difere em pelo menos um *purpose*). Não há
+  direção, porque o `purpose` é uma variável nominal (as categorias não têm ordem).
+
+```{r b-dados}
+tab_b <- table(cls$purpose, cls$target)
+taxa_global <- mean(cls$target == "Default")
+
+# Taxa de default de cada purpose, com intervalo de confiança a 95% (Wilson)
+por_purpose <- data.table(purpose = rownames(tab_b), n = rowSums(tab_b), default = tab_b[, "Default"])
+por_purpose[, taxa := 100 * default / n]
+por_purpose[, c("ic95_inf", "ic95_sup") := {
+  ic <- mapply(function(x, n) prop.test(x, n)$conf.int, default, n)
+  list(100 * ic[1, ], 100 * ic[2, ])
+}]
+setorder(por_purpose, -taxa)
+por_purpose[, lapply(.SD, function(v) if (is.numeric(v)) round(v, 1) else v)]
+```
+
+```{r b-grafico, fig.height = 4.5}
+par(mar = c(4, 9, 2, 1))
+pos <- rev(seq_len(nrow(por_purpose)))   # o purpose com a taxa mais alta fica em cima
+plot(por_purpose$taxa, pos, xlim = range(0, por_purpose$ic95_sup), pch = 19, col = "#eb6834",
+     yaxt = "n", xlab = "% default (IC 95%)", ylab = "", main = "Taxa de default por purpose")
+segments(por_purpose$ic95_inf, pos, por_purpose$ic95_sup, pos, col = "#eb6834")
+axis(2, at = pos, labels = por_purpose$purpose, las = 1, cex.axis = 0.8)
+abline(v = 100 * taxa_global, lty = 2, col = "#52514e")   # taxa de todo o treino
+```
+
+**Porquê o teste do qui-quadrado de independência.**
+
+- Relaciona **duas variáveis categóricas** (`purpose` com 14 categorias e o desfecho com 2).
+- Compara as contagens observadas em cada célula da tabela com as que se esperariam se as duas
+  variáveis fossem independentes: $E_{ij} = \frac{\text{total da linha } i \times \text{total da coluna } j}{n}$.
+  A estatística $\chi^2 = \sum (O - E)^2 / E$ é grande quando as contagens se afastam muito das
+  esperadas.
+- Alternativas rejeitadas: o teste exato de Fisher só é necessário com contagens esperadas
+  pequenas (e é muito pesado numa tabela 14 × 2 com 31 mil linhas); uma regressão logística
+  daria a mesma informação com mais pressupostos.
+
+**Pressupostos.**
+
+1. **Observações independentes**, cada uma numa só célula. Cada linha é um empréstimo diferente
+   (com a mesma ressalva dos ~0,5% de mutuários repetidos).
+2. **Contagens esperadas de pelo menos 5 em todas as células.** Verifica-se abaixo: a menor é
+   `r round(min(suppressWarnings(chisq.test(tab_b))$expected), 1)` (*renewable_energy*), por
+   isso não é preciso juntar categorias.
+3. A correção de continuidade de Yates só se aplica a tabelas 2 × 2, por isso não é usada.
+
+```{r b-teste}
+teste_b <- chisq.test(tab_b)
+teste_b
+cat("Menor contagem esperada:", round(min(teste_b$expected), 1), "\n")
+
+v_b <- cramers_v(tab_b)
+ic_b <- ic_cramers_v(cls$purpose, cls$target)
+data.frame(medida = "V de Cramér", estimativa = round(v_b, 3),
+           ic95_inf = round(ic_b[1], 3), ic95_sup = round(ic_b[2], 3))
+```
+
+**Que *purposes* se afastam da taxa global?** O $\chi^2$ só diz que há diferenças, não onde
+estão. Para isso usam-se os **resíduos padronizados ajustados** da coluna *Default*:
+$(O - E) / \sqrt{E (1 - p_{linha})(1 - p_{coluna})}$, que seguem aproximadamente uma normal
+padrão se H0 for verdade. Positivos querem dizer mais *default* do que o esperado. Como se
+olha para 14 *purposes* ao mesmo tempo, o valor crítico tem a correção de Bonferroni:
+$|z| > z_{1 - 0{,}05 / (2 \times 14)}$.
+
+```{r b-residuos}
+z_critico <- qnorm(1 - ALFA / (2 * nrow(tab_b)))
+residuos <- data.table(purpose = rownames(tab_b), residuo = teste_b$stdres[, "Default"])
+residuos <- merge(por_purpose[, .(purpose, n, taxa)], residuos, by = "purpose")
+residuos[, diferente := ifelse(abs(residuo) > z_critico,
+                               ifelse(residuo > 0, "mais default", "menos default"), "-")]
+setorder(residuos, -residuo)
+cat("Valor crítico (Bonferroni):", round(z_critico, 2), "\n")
+residuos[, .(purpose, n, taxa = round(taxa, 1), residuo = round(residuo, 2), diferente)]
+
+resultados$b <- data.frame(
+  hipotese = "(b) purpose associado ao default",
+  dados = "treino da classificação (2007-06 a 2011-12)",
+  n = sprintf("%d empréstimos, 14 purposes", sum(tab_b)),
+  teste = "Qui-quadrado de independência",
+  p = teste_b$p.value,
+  efeito = "V de Cramér",
+  estimativa = v_b, ic95_inf = ic_b[1], ic95_sup = ic_b[2],
+  magnitude = as.character(magnitude_v(v_b))
+)
+```
+
+```{r b-resumo, include = FALSE}
+mais <- residuos[diferente == "mais default", purpose]
+menos <- residuos[diferente == "menos default", purpose]
+topo <- por_purpose[1]
+fundo <- por_purpose[.N]
+```
+
+**Interpretação.**
+
+- **Rejeita-se H0** ($\chi^2 =$ `r round(teste_b$statistic, 1)`, `r teste_b$parameter` graus de
+  liberdade, $p =$ `r format(teste_b$p.value, digits = 2)`): a taxa de *default* não é a mesma
+  em todos os *purposes*.
+- **O efeito é `r magnitude_v(v_b)`**: $V =$ `r round(v_b, 3)` (IC 95% `r round(ic_b[1], 3)` a
+  `r round(ic_b[2], 3)`).
+- Mesmo assim, as diferenças entre categorias são grandes: a taxa vai de
+  `r round(fundo$taxa, 1)`% (`r fundo$purpose`) a `r round(topo$taxa, 1)`% (`r topo$purpose`),
+  para uma taxa global de `r round(100 * taxa_global, 1)`%. O V é pequeno porque a maior parte
+  dos empréstimos está em *purposes* perto da média (*debt_consolidation* sozinho tem
+  `r round(100 * por_purpose[purpose == "debt_consolidation", n] / nrow(cls))`% do treino), e o
+  V mede a associação no conjunto de todos os empréstimos.
+- Com a correção de Bonferroni, têm **mais *default*** do que o esperado:
+  `r paste(mais, collapse = ", ")`; e **menos *default***: `r paste(menos, collapse = ", ")`.
+  Os restantes não se distinguem da taxa global (*moving* e *wedding* ficam mesmo no limite).
+  Categorias pequenas como *renewable_energy* (`r por_purpose[purpose == "renewable_energy", n]`
+  empréstimos) têm intervalos largos e nada se pode concluir sobre elas.
+- **O que significa para os modelos:** o `purpose` é uma variável útil, sobretudo para separar
+  os casos de *small_business* (risco alto) dos de *credit_card* e *major_purchase* (risco
+  baixo). As categorias raras devem ser agrupadas, como já faz o *pipeline*
+  (`OneHotEncoder` com frequência mínima).
+- **Associação, não causalidade:** o *purpose* é escolhido pelo mutuário, e quem escolhe cada
+  um pode ter um perfil diferente (rendimento, FICO, estabilidade do rendimento). Por exemplo, o
+  risco de *small_business* pode vir da incerteza do rendimento de um negócio e não do
+  *purpose* em si. Os dados não permitem separar estas explicações.
