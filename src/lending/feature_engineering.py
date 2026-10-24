@@ -140,6 +140,15 @@ def _issue_year(df):
     return pd.to_datetime(df["issue_d"]).dt.year.astype("float64")
 
 
+def _revol_to_income(df):
+    return safe_ratio(df["revol_bal"], df["annual_inc"])
+
+
+def _open_acc_pct(df):
+    # % das linhas de crédito do historial que ainda estão abertas (0 a 100)
+    return 100 * safe_ratio(df["open_acc"], df["total_acc"])
+
+
 # =========================
 # = Catálogo das features =
 # =========================
@@ -217,7 +226,39 @@ FEATURES = [
         compute=_issue_year,
         author="João",
     ),
-    # COLOCAR AQUI AS OUTRAS 5
+    FeatureSpec(
+        name="revol_to_income",
+        sources=("revol_bal", "annual_inc"),
+        formula="revol_bal / annual_inc",
+        rationale="Saldo em crédito rotativo (cartões) face ao rendimento: o revol_util mede a "
+                  "parte do limite usada, mas não diz se a dívida é grande para o rendimento. "
+                  "No treino da classificação, o quintil mais alto tem 14,9% de default contra "
+                  "cerca de 11,3% nos três primeiros; a correlação com o revol_util (ρ = 0,34) e "
+                  "com o dti (ρ = 0,40) é moderada, por isso acrescenta informação.",
+        missing="NaN se revol_bal faltar ou se annual_inc faltar ou for <= 0 (sem divisão por "
+                "zero); depois, imputação pela mediana do treino + indicador no pipeline.",
+        moment="T0",
+        tasks=("regression", "classification", "clustering"),
+        compute=_revol_to_income,
+        author="Rodrigo",
+    ),
+    FeatureSpec(
+        name="open_acc_pct",
+        sources=("open_acc", "total_acc"),
+        formula="100 × open_acc / total_acc",
+        rationale="Parte do historial de crédito que continua aberta: o mesmo número de contas "
+                  "abertas significa coisas diferentes para quem teve 5 ou 50 contas. Uma "
+                  "percentagem alta indica crédito recente ou acumulado. No treino da "
+                  "classificação, o quintil mais alto tem 15,5% de default contra 10,5% a 12,1% "
+                  "nos outros (relação não linear); a correlação com o open_acc é só ρ = 0,26.",
+        missing="NaN se alguma das colunas faltar ou se total_acc for <= 0; imputação pela "
+                "mediana do treino + indicador no pipeline.",
+        moment="T0",
+        tasks=("regression", "classification", "clustering"),
+        compute=_open_acc_pct,
+        author="Rodrigo",
+    ),
+    # COLOCAR AQUI AS OUTRAS 3
 ]
 
 
