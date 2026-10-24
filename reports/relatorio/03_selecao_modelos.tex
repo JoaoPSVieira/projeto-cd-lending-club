@@ -30,10 +30,10 @@ Foram criadas dez \textit{features} (Tabelas~\ref{tab:mod-features} e~\ref{tab:m
 \texttt{credit\_history\_years}  & (\texttt{issue\_d} $-$ \texttt{earliest\_cr\_line}) em anos & T4 & & \checkmark & \\
 \texttt{issue\_year}             & ano de \texttt{issue\_d} & T4 & & \checkmark\textsuperscript{*} & \\
 \texttt{revol\_to\_income}       & \texttt{revol\_bal} / \texttt{annual\_inc} & T0 & \checkmark & \checkmark & \checkmark \\
-\texttt{open\_acc\_ratio}        & \texttt{open\_acc} / \texttt{total\_acc} & T0 & \checkmark & \checkmark & \checkmark \\
-\texttt{has\_delinquency}        & 1 se \texttt{delinq\_2yrs} $\geq 1$ & T0 & \checkmark & \checkmark & \checkmark \\
+\texttt{open\_acc\_pct}          & $100 \times$ \texttt{open\_acc} / \texttt{total\_acc} & T0 & \checkmark & \checkmark & \checkmark \\
+\texttt{ever\_delinquent}        & 1 se \texttt{delinq\_2yrs} $\geq 1$ ou \texttt{mths\_since\_last\_delinq} preenchido & T0 & \checkmark & \checkmark & \checkmark \\
 \texttt{has\_public\_record}     & 1 se \texttt{pub\_rec} $\geq 1$ & T0 & \checkmark & \checkmark & \checkmark \\
-\texttt{total\_util}             & $100 \times$ \texttt{tot\_cur\_bal} / \texttt{tot\_hi\_cred\_lim} & T0 & \checkmark & & \\
+\texttt{total\_credit\_util}     & $100 \times$ \texttt{tot\_cur\_bal} / \texttt{tot\_hi\_cred\_lim} & T0 & \checkmark & & \\
 \hline
 \multicolumn{6}{|l|}{\textsuperscript{*} Condicional: o enunciado permite a data de concessão no classificador quando justificada.} \\
 \hline
@@ -61,13 +61,13 @@ Foram criadas dez \textit{features} (Tabelas~\ref{tab:mod-features} e~\ref{tab:m
 \hline
 \texttt{revol\_to\_income} & Peso da dívida rotativa (sobretudo cartões) face ao rendimento. & Em falta se o rendimento faltar ou for $\leq 0$. \\
 \hline
-\texttt{open\_acc\_ratio} & Distingue muitas contas ativas de um historial longo com contas fechadas; retira a escala comum de \texttt{open\_acc} e \texttt{total\_acc} ($\rho = 0{,}67$). & Em falta se \texttt{total\_acc} faltar ou for 0. \\
+\texttt{open\_acc\_pct} & Distingue muitas contas ativas de um historial longo com contas fechadas; retira a escala comum de \texttt{open\_acc} e \texttt{total\_acc} ($\rho = 0{,}67$). & Em falta se \texttt{total\_acc} faltar ou for 0, ou se \texttt{open\_acc} for maior (caso impossível). \\
 \hline
-\texttt{has\_delinquency} & 80,8\% têm zero atrasos; a informação útil é ter ou não ter. & Em falta se a origem faltar (não se assume 0). \\
+\texttt{ever\_delinquent} & 80,8\% têm zero atrasos nos últimos 2 anos; a informação útil é ter ou não ter. Junta-se \texttt{mths\_since\_last\_delinq}, em que o vazio significa ``nunca'', para cobrir todo o historial. & Em falta só se as duas origens faltarem (não se assume 0). \\
 \hline
 \texttt{has\_public\_record} & 84,5\% têm zero registos; registos públicos (falências, penhoras) são um sinal de risco. & Em falta se a origem faltar. \\
 \hline
-\texttt{total\_util} & Utilização de todo o crédito; saldo e limite totais são quase iguais ($\rho = 0{,}98$) e só o rácio acrescenta informação. Colunas do \textit{bureau} só desde 2012, logo só na regressão. & Em falta se o limite faltar ou for 0. \\
+\texttt{total\_credit\_util} & Utilização de todo o crédito; saldo e limite totais são quase iguais ($\rho = 0{,}98$) e só o rácio acrescenta informação. Colunas do \textit{bureau} só desde 2012, logo só na regressão. & Em falta se o limite faltar ou for 0. \\
 \hline
 \end{tabular}
 \end{table*}
