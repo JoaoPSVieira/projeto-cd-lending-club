@@ -5,26 +5,26 @@ Projeto de Ciência de Dados - 2026/2027
 ## 📂Estrutura do projeto
 
 ```text
-ds-lending-club/
+projeto-cd-lending-club/
 │
-├── data/
+├── data/                     # Não está no Git (gerado localmente)
 │   ├── raw/                  # Dados originais (CSVs do Kaggle)
-│   └── processed/            # Dados processados (Parquet)
+│   └── processed/            # Dados processados (pickle)
 │
 ├── src/
-│   └── lending/              # Pacote Python
-│       └── __init__.py
+│   └── lending/              # Pacote Python: classes usadas pelos notebooks
 │
 ├── notebooks/                # Jupyter Notebooks (.ipynb)
 │
-├── R/                        # Análises e código em R
+├── R/                        # Testes de hipóteses em R (R Markdown)
 │
 ├── reports/
-│   └── figures/              # Gráficos exportados para o relatório LaTeX
+│   ├── figures/              # Gráficos exportados para o relatório LaTeX
+│   └── relatorio/            # Fonte LaTeX do relatório
 │
 ├── models/                   # Modelos treinados (Parte 2)
 │
-├── docs/                     # Documentação, enunciado e notas
+├── docs/                     # Documentação de cada fase e dicionário de dados
 │
 ├── .gitignore                # Ficheiros e diretórios ignorados pelo Git
 ├── README.md                 # Documentação do projeto
@@ -34,7 +34,7 @@ ds-lending-club/
 ## Tarefas
 
 - Regressão: prever `int_rate` com informação pré-pricing
-- Classificação: desfecho do empréstimo em 3 classes (Good standing / At risk / Default)
+- Classificação: desfecho do empréstimo em 3 classes (Good standing / At risk / Default); na prática binária, porque a classe At risk não existe no treino (ver relatório, secção II-F)
 - Clustering: mutuários e estados
 
 ## Setup
@@ -43,11 +43,41 @@ ds-lending-club/
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+pip install -e .
+```
+
+R (testes de hipóteses): R ≥ 4.1 e pandoc (incluído no RStudio).
+
+```r
+install.packages(c("rmarkdown", "knitr", "data.table", "boot"))
 ```
 
 ## Dados
 
-Fazer download de https://www.kaggle.com/datasets/wordsforthewise/lending-club e colocar os CSVs em `data/raw/`.
+Fazer download de https://www.kaggle.com/datasets/wordsforthewise/lending-club e colocar em `data/raw/` os ficheiros `accepted_2007_to_2018Q4.csv.gz` e `rejected_2007_to_2018Q4.csv.gz`, sem descomprimir.
+
+## Como correr
+
+Cada notebook lê os ficheiros gerados pelos anteriores, por isso a ordem importa:
+
+1. `00_conversao_dados.ipynb`: CSV -> pickle
+2. `01_preprocessamento.ipynb`: limpeza, partição temporal, coortes e teste final
+3. `01b_rejeitados.ipynb`: limpeza dos pedidos rejeitados
+4. `01c_pipeline.ipynb`: pipeline de pré-processamento e validação temporal
+5. `02_eda.ipynb`: análise exploratória, PCA e UMAP
+6. `02b_dados_testes_hipoteses.ipynb`: exporta para CSV os dados dos testes em R
+7. `R/testes_hipoteses.Rmd`: testes de hipóteses; gera `reports/testes_hipoteses.html`
+   ```text
+   Rscript -e "rmarkdown::render('R/testes_hipoteses.Rmd', output_dir = 'reports')"
+   ```
+8. `03_features.ipynb`: features novas, verificadas no pipeline
+
+## Entrega da Parte 1
+
+- Relatório: `reports/relatorio_parte1.pdf` (fonte LaTeX em `reports/relatorio/`)
+- Notebook de exploração e pré-processamento: os notebooks 00 a 03, pela ordem acima
+- Trabalho em R: `R/testes_hipoteses.Rmd` e o HTML gerado em `reports/`
+- Documentação: `docs/` (uma pasta por fase) e as docstrings do pacote `src/lending`
 
 ## Grupo
 
