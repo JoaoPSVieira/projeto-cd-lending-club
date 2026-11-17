@@ -32,4 +32,7 @@ Módulos:
 
     Fase 3 - seleção de modelos
     feature_engineering  Features novas: fichas (FEATURES) e FeatureBuilder (entra no pipeline).
+
+    Fase 4 - construção de modelos
+    deep          MLP em Keras com a interface do scikit-learn (KerasMLPRegressor).
 """
