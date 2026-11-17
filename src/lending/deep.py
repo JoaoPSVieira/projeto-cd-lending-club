@@ -21,11 +21,15 @@ Arquitetura (justificada na secção 3 do relatório):
 
 Paragem antecipada temporal:
     A rede treina no máximo max_epochs épocas (passagens completas pelo treino). No fim de
-    cada época mede-se a perda num conjunto de validação interno; se não melhorar durante
-    `patience` épocas, o treino pára e ficam os pesos da melhor época. O conjunto interno
-    são as ÚLTIMAS linhas do treino do fold (validation_split do Keras corta o fim dos
-    arrays antes de baralhar). Como os dados chegam ordenados por issue_d, são os
-    empréstimos mais recentes: a paragem nunca espreita o futuro de dentro do fold.
+    cada época mede-se um critério num conjunto de validação interno; se não melhorar
+    durante `patience` épocas, o treino pára e ficam os pesos da melhor época. O conjunto
+    interno são as ÚLTIMAS linhas do treino do fold (as mesmas que o validation_split do
+    Keras usaria). Como os dados chegam ordenados por issue_d, são os empréstimos mais
+    recentes: a paragem nunca espreita o futuro de dentro do fold. Só as restantes linhas
+    atualizam os pesos.
+    - Regressão: critério = perda (MSE ou Huber) na validação interna.
+    - Classificação: critério = AUC na validação interna. A perda não serve, porque os
+      pesos das classes entram na perda do treino mas o Keras não os aplica à validação.
 
 Reprodutibilidade:
     keras.utils.set_random_seed fixa as sementes do Python, do NumPy e do TensorFlow no
@@ -42,9 +46,12 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 # (retracing). É esperado e inofensivo; sem isto as grelhas enchiam o output de avisos.
 logging.getLogger("tensorflow").setLevel(logging.ERROR)
 
+import math  # noqa: E402
+
 import keras  # noqa: E402  (tem de vir depois da variável de ambiente)
 import numpy as np  # noqa: E402
-from sklearn.base import BaseEstimator, RegressorMixin  # noqa: E402
+from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin  # noqa: E402
+from sklearn.utils.class_weight import compute_class_weight  # noqa: E402
 from sklearn.utils.validation import check_is_fitted  # noqa: E402
 
 from lending import config  # noqa: E402
@@ -70,9 +77,11 @@ class _KerasMLP(BaseEstimator):
 
     Atributos aprendidos no fit:
         model_ (keras.Model): A rede treinada
-        history_ (dict[str, list[float]]): Perda no treino e na validação interna por época
-        best_epoch_ (int): Época com a menor perda na validação interna (pesos guardados)
+        history_ (dict[str, list[float]]): Perda (e AUC, na classificação) no treino e na
+            validação interna, por época
+        best_epoch_ (int): Melhor época na validação interna (os pesos guardados são estes)
         n_epochs_ (int): Épocas efetivamente corridas
+        n_fit_ (int), n_stop_ (int): Linhas que atualizam os pesos / linhas da validação interna
         n_features_in_ (int): Número de colunas de entrada
     """
 
@@ -111,7 +120,21 @@ class _KerasMLP(BaseEstimator):
         model.add(keras.layers.Dense(1, activation=output_activation))
         return model
 
-    def _fit_network(self, X, y, loss, output_activation, class_weight=None):
+    def _stop_cut(self, n_rows):
+        """
+        Posição onde começa a validação interna (as últimas linhas do treino do fold)
+
+        Usa o mesmo arredondamento do validation_split do Keras.
+        """
+        if not 0 < self.validation_fraction < 1:
+            raise ValueError("validation_fraction tem de estar entre 0 e 1.")
+        cut = int(math.ceil(n_rows * (1 - self.validation_fraction)))
+        if cut == 0 or cut == n_rows:
+            raise ValueError(f"Com {n_rows} linhas não sobra treino ou validação interna.")
+        return cut
+
+    def _fit_network(self, X, y, loss, output_activation, class_weight=None,
+                     metrics=None, monitor="val_loss", mode="min"):
         """
         Treina uma rede nova com paragem antecipada nas últimas linhas do treino
 
@@ -120,27 +143,32 @@ class _KerasMLP(BaseEstimator):
             y (np.ndarray): Alvo já preparado pela subclasse
             loss (str): Função de perda do Keras ("mse", "huber", "binary_crossentropy")
             output_activation (str): "linear" (regressão) ou "sigmoid" (classificação)
-            class_weight (dict | None): Peso de cada classe na perda
+            class_weight (dict[int, float] | None): Peso na perda de cada classe (0 ou 1)
+            metrics (list | None): Métricas do Keras medidas em cada época
+            monitor (str): Critério da paragem antecipada, ex.: "val_loss" ou "val_auc"
+            mode (str): "min" se menor é melhor, "max" se maior é melhor
 
         Returns:
             self
         """
-        if not 0 < self.validation_fraction < 1:
-            raise ValueError("validation_fraction tem de estar entre 0 e 1.")
+        cut = self._stop_cut(len(X))
         keras.utils.set_random_seed(self.random_state)
         self.n_features_in_ = X.shape[1]
+        self.n_fit_, self.n_stop_ = cut, len(X) - cut
         self.model_ = self._build(self.n_features_in_, output_activation)
         self.model_.compile(optimizer=keras.optimizers.Adam(learning_rate=self.learning_rate),
-                            loss=loss)
-        stop = keras.callbacks.EarlyStopping(monitor="val_loss", patience=self.patience,
+                            loss=loss, metrics=metrics)
+        stop = keras.callbacks.EarlyStopping(monitor=monitor, mode=mode,
+                                             patience=self.patience,
                                              restore_best_weights=True)
-        history = self.model_.fit(X, y, batch_size=self.batch_size, epochs=self.max_epochs,
-                                  validation_split=self.validation_fraction, shuffle=True,
-                                  class_weight=class_weight, callbacks=[stop],
+        history = self.model_.fit(X[:cut], y[:cut], validation_data=(X[cut:], y[cut:]),
+                                  batch_size=self.batch_size, epochs=self.max_epochs,
+                                  shuffle=True, class_weight=class_weight, callbacks=[stop],
                                   verbose=self.verbose)
         self.history_ = {k: [float(v) for v in values] for k, values in history.history.items()}
         self.n_epochs_ = len(self.history_["loss"])
-        self.best_epoch_ = int(np.argmin(self.history_["val_loss"])) + 1
+        best = np.argmin if mode == "min" else np.argmax
+        self.best_epoch_ = int(best(self.history_[monitor])) + 1
         return self
 
     def _raw_predict(self, X):
@@ -215,3 +243,103 @@ class KerasMLPRegressor(RegressorMixin, _KerasMLP):
             np.ndarray: Previsões nas unidades originais do alvo
         """
         return self._raw_predict(X) * self.y_std_ + self.y_mean_
+
+
+class KerasMLPClassifier(ClassifierMixin, _KerasMLP):
+    """
+    MLP de classificação binária: saída sigmoide (uma unidade), entropia cruzada binária
+
+    Segue as convenções dos classificadores do scikit-learn, para o runner os tratar como
+    à logística ou à Random Forest:
+        - classes_ = as duas classes por ordem (np.unique), ex.: ["Default", "Good standing"]
+        - a saída sigmoide é a probabilidade de classes_[1]
+        - predict_proba(X) devolve 2 colunas, pela ordem de classes_ (somam 1)
+        - predict(X) usa o limiar 0,5. O limiar final (o que maximiza o F1 macro nas
+          previsões fora do fold) é escolhido fora do modelo, a partir do predict_proba.
+
+    Desequilíbrio (12,3% de Default no treino):
+        class_weight="balanced" dá a cada classe o peso n / (2 x n_classe), calculado só nas
+        linhas que atualizam os pesos. Um erro num Default pesa ~7 vezes mais do que num Good
+        standing, por isso a rede não aprende a prever sempre a classe maioritária. Não se
+        reamostra nada e a validação interna não é reequilibrada.
+
+    Attributes:
+        class_weight (str | dict | None): "balanced", {classe: peso} ou None (sem pesos)
+        (os restantes estão em _KerasMLP)
+
+    Atributos aprendidos no fit (além dos de _KerasMLP):
+        classes_ (np.ndarray): As duas classes, por ordem
+        class_weight_ (dict | None): Peso usado para cada classe
+
+    Exemplo:
+        pipe = Pipeline([("features", FeatureBuilder("classification")),
+                         ("pre", build_preprocessor(extended)),
+                         ("model", KerasMLPClassifier(hidden_layers=(64,)))])
+        pipe.fit(X_train, y_train)          # X_train ordenado por issue_d
+        default = list(pipe.classes_).index("Default")
+        p_default = pipe.predict_proba(X_valid)[:, default]
+    """
+
+    def __init__(self, hidden_layers=(128, 64), dropout=0.2, learning_rate=1e-3,
+                 batch_size=512, max_epochs=50, patience=5, validation_fraction=0.15,
+                 random_state=config.RANDOM_SEED, verbose=0, class_weight="balanced"):
+        super().__init__(hidden_layers=hidden_layers, dropout=dropout,
+                         learning_rate=learning_rate, batch_size=batch_size,
+                         max_epochs=max_epochs, patience=patience,
+                         validation_fraction=validation_fraction,
+                         random_state=random_state, verbose=verbose)
+        self.class_weight = class_weight
+
+    def fit(self, X, y):
+        """
+        Parameters:
+            X (pd.DataFrame | np.ndarray): Saída do build_preprocessor, ordenada por issue_d
+            y (pd.Series | np.ndarray): Classe de cada empréstimo (exatamente 2 classes)
+
+        Returns:
+            self
+        """
+        X = self._as_array(X)
+        y = np.asarray(y).ravel()
+        if len(y) != len(X):
+            raise ValueError(f"X tem {len(X)} linhas e y tem {len(y)}.")
+        self.classes_ = np.unique(y)
+        if len(self.classes_) != 2:
+            raise ValueError(f"A MLP é binária; o alvo tem as classes {list(self.classes_)}.")
+        y01 = (y == self.classes_[1]).astype(np.float32)
+
+        # Pesos calculados só nas linhas que atualizam os pesos (sem a validação interna)
+        fitted = y[:self._stop_cut(len(y))]
+        if self.class_weight == "balanced":
+            if len(np.unique(fitted)) != 2:
+                raise ValueError("As linhas de treino da rede só têm uma classe.")
+            weights = compute_class_weight("balanced", classes=self.classes_, y=fitted)
+            self.class_weight_ = {c: float(w) for c, w in zip(self.classes_, weights)}
+        elif isinstance(self.class_weight, dict):
+            self.class_weight_ = {c: float(self.class_weight[c]) for c in self.classes_}
+        elif self.class_weight is None:
+            self.class_weight_ = None
+        else:
+            raise ValueError("class_weight tem de ser 'balanced', um dicionário ou None.")
+        keras_weights = (None if self.class_weight_ is None else
+                         {i: self.class_weight_[c] for i, c in enumerate(self.classes_)})
+
+        return self._fit_network(X, y01, loss="binary_crossentropy",
+                                 output_activation="sigmoid", class_weight=keras_weights,
+                                 metrics=[keras.metrics.AUC(name="auc")],
+                                 monitor="val_auc", mode="max")
+
+    def predict_proba(self, X):
+        """
+        Returns:
+            np.ndarray: Matriz (n, 2) com a probabilidade de cada classe, pela ordem de classes_
+        """
+        p = self._raw_predict(X).astype(np.float64)
+        return np.column_stack([1 - p, p])
+
+    def predict(self, X):
+        """
+        Returns:
+            np.ndarray: Classe prevista com o limiar 0,5 (o limiar final escolhe-se fora)
+        """
+        return self.classes_[(self.predict_proba(X)[:, 1] >= 0.5).astype(int)]
