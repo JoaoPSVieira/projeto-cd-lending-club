@@ -342,4 +342,5 @@ class KerasMLPClassifier(ClassifierMixin, _KerasMLP):
         Returns:
             np.ndarray: Classe prevista com o limiar 0,5 (o limiar final escolhe-se fora)
         """
-        return self.classes_[(self.predict_proba(X)[:, 1] >= 0.5).astype(int)]
+        proba = self.predict_proba(X)            # primeiro: dá NotFittedError se não houver fit
+        return self.classes_[(proba[:, 1] >= 0.5).astype(int)]
