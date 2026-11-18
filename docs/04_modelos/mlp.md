@@ -1,8 +1,9 @@
 # Rede neuronal densa (MLP) em Keras (Fase 4)
 
 O enunciado pede um modelo de *deep learning* (TensorFlow ou PyTorch) para a regressão e para a classificação, com a
-arquitetura justificada. A secção 3 do relatório definiu uma MLP com duas a três camadas escondidas, ReLU, *dropout* e
-paragem antecipada, com saída linear na regressão e sigmoide na classificação. Este documento descreve a implementação,
+arquitetura justificada. A secção 3 do relatório definiu uma MLP densa com ReLU, *dropout* e paragem antecipada, com
+saída linear na regressão e sigmoide na classificação, e uma grelha de três arquiteturas com uma, duas e três camadas
+escondidas. Este documento descreve a implementação,
 as decisões tomadas e o que foi verificado.
 
 Código: `src/lending/deep.py` (`KerasMLPRegressor`, `KerasMLPClassifier`).
@@ -78,7 +79,7 @@ verificação da secção 8, a rede maior parou à época 11 nesse *fold*).
 
 | Parâmetro | Omissão | Grelha | Notas |
 |---|---|---|---|
-| `hidden_layers` | (128, 64) | (64), (128, 64), (256, 128, 64) | Uma, duas e três camadas, como na secção 3 do relatório |
+| `hidden_layers` | (128, 64) | (64), (128, 64), (256, 128, 64) | Uma, duas e três camadas, como na grelha da secção 3 do relatório |
 | `learning_rate` | 0,001 | 0,001 e 0,0003 | 0,001 é o valor de referência do Adam; 0,0003 é mais lento mas mais estável nas redes maiores |
 | `dropout` | 0,2 | fixo | |
 | `batch_size` | 512 | fixo | Empréstimos por atualização dos pesos |
