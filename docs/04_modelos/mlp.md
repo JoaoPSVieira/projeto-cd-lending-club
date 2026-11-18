@@ -87,8 +87,8 @@ verificação da secção 8, a rede maior parou à época 11 nesse *fold*).
 | `patience` | 5 | fixo | Épocas sem melhoria antes de parar |
 | `validation_fraction` | 0,15 | fixo | Últimas linhas do treino do *fold*, usadas na paragem antecipada |
 | `random_state` | 42 | fixo | `config.RANDOM_SEED` |
-| `loss` (regressão) | `"mse"` | — | `"huber"` como alternativa, se as taxas extremas pesarem demais |
-| `class_weight` (classificação) | `"balanced"` | — | Ver secção 5 |
+| `loss` (regressão) | `"mse"` | - | `"huber"` como alternativa, se as taxas extremas pesarem demais |
+| `class_weight` (classificação) | `"balanced"` | - | Ver secção 5 |
 
 A grelha tem 3 × 2 = 6 configurações por tarefa: 36 ajustes na regressão (6 *folds*) e 18 na classificação (3 *folds*).
 
@@ -194,7 +194,7 @@ não houve afinação, e a comparação entre modelos vem da validação cruzada
 
 | Modelo | MAE (p.p.) | RMSE (p.p.) |
 |---|---|---|
-| Mediana do treino | 3,72 | — |
+| Mediana do treino | 3,72 | - |
 | Ridge (alpha = 1) | 1,73 | 2,17 |
 | MLP (64) | 1,66 | 2,10 |
 | MLP (128, 64) | 1,70 | 2,14 |
