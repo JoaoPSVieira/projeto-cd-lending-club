@@ -35,4 +35,10 @@ Módulos:
 
     Fase 4 - construção de modelos
     deep          MLP em Keras com a interface do scikit-learn (KerasMLPRegressor, KerasMLPClassifier).
+    experiment    Validação cruzada temporal de todos os modelos (CrossValidationRunner, ModelSpec).
+    evaluation    Métricas, limiar da classificação, matriz de confusão e bootstrap.
+    baselines     Baselines: mediana por prazo e taxa de default do grau.
+    boosting      LightGBM com paragem antecipada nas linhas mais recentes.
+    model_catalog Modelos e grelhas da secção 3 (regression_specs, classification_specs).
+    knn           kNN de raiz em NumPy (NeighborSearch, KNNRegressor, KNNClassifier).
 """
