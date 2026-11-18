@@ -44,7 +44,10 @@ import os
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 # Cada fold cria uma rede nova e o TensorFlow avisa que "recompila" a função de previsão
 # (retracing). É esperado e inofensivo; sem isto as grelhas enchiam o output de avisos.
+# Em sessões interativas (Jupyter), o TensorFlow repõe o nível do seu logger em INFO quando o
+# cria, por isso o setLevel não chega; o filtro não é reposto e esconde os avisos na mesma.
 logging.getLogger("tensorflow").setLevel(logging.ERROR)
+logging.getLogger("tensorflow").addFilter(lambda record: record.levelno >= logging.ERROR)
 
 import math  # noqa: E402
 
