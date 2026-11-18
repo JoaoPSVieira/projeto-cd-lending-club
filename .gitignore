@@ -249,3 +249,6 @@ venv/
 
 # Exceções
 !docs/LCDataDictionary.csv
+
+# Resultados das experiências da Parte 2 (CSV pequenos, entram no Git)
+!reports/results/*.csv
