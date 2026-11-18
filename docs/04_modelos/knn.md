@@ -33,6 +33,13 @@ Bloco 2 do plano da Parte 2.
       "probabilidade" usada na AUC e no limiar; `predict` devolve a classe mais votada.
 - **Pesos:** `"uniform"` (todos iguais) ou `"distance"` (1/d). Um vizinho a distância 0 tem um
   peso enorme e domina a previsão, como no scikit-learn.
+- **Pesos das classes (só na classificação):** com `class_weight="balanced"`, o voto de cada
+  vizinho é também multiplicado pelo peso da sua classe, n / (2 × n_classe), calculado no
+  treino. É a regra do scikit-learn e dos outros modelos do catálogo. Sem pesos, a proporção de
+  *Default* fica na escala da taxa de *default* do treino (12–22% nos folds), e com um limiar
+  fixo a percentagem de *Default* previstos acompanha essa taxa de fold para fold. A proporção
+  ponderada é uma função crescente da simples, p_w = w₁p / (w₁p + w₀(1 − p)), por isso a AUC
+  de cada fold não muda; só muda o nível das probabilidades.
 - **Distância:** euclidiana, a indicada para variáveis numéricas (T04, p. 35). O pipeline
   padroniza todas as colunas, por isso nenhuma domina pela escala, que é o caso em que os
   slides sugerem a de Manhattan.
@@ -95,6 +102,7 @@ Com o runner, na regressão, isto dá 6 pesquisas em vez de 60 (uma por fold).
 | Treino | Amostra de 50 000 empréstimos do treino de cada fold (semente 42), pelo custo m × n | Treino inteiro do fold (até 17 424 empréstimos) |
 | Colunas | Todas as do pipeline | Sem `dti_with_loan` (e o seu indicador de falta): é `dti + installment_to_income`, uma combinação linear |
 | Grelha | k ∈ {5, 15, 31, 51, 101} × pesos {uniformes, distância} | Igual |
+| Pesos das classes | Não se aplica | `class_weight="balanced"`, como os outros modelos supervisionados |
 
 No teste de 2015, a regressão prevê ~420 000 empréstimos contra os 50 000 do treino: cerca de 3
 minutos.
@@ -109,6 +117,7 @@ minutos.
 | O tamanho do bloco não muda o resultado | `test_blocks_do_not_change_the_result` |
 | k = n; cada ponto de treino é o seu vizinho a distância 0 | `test_query_with_k_equal_to_training_size`, `test_training_point_is_its_own_nearest_neighbour` |
 | Regressão e classificação iguais às do scikit-learn (só como referência), com os dois pesos | `test_regressor_matches_sklearn`, `test_classifier_matches_sklearn` |
+| Pesos das classes: exemplo feito à mão; a proporção ponderada é a transformação crescente da simples, com os dois pesos; `None` e dicionário; valor inválido | `test_balanced_class_weight_*`, `test_class_weight_none_and_dict`, `test_invalid_class_weight` |
 | `search_k` dá as mesmas previsões; a grelha calcula as distâncias uma vez; a cache não é usada com outros dados | `test_search_k_*`, `test_grid_computes_distances_once`, `test_cache_is_not_reused_for_other_data` |
 | `Pipeline`, `clone`, `pickle`, colunas verificadas, parâmetros inválidos, NaN | `test_pipeline_clone_and_pickle` e seguintes |
 | O módulo não importa `sklearn.neighbors` nem o SciPy | `test_knn_module_does_not_use_sklearn_neighbors` |
@@ -125,4 +134,5 @@ minutos.
 | Como se escolhe k? | Pelo erro de validação (T04, p. 38): no runner, a média do MAE ou do F1 macro nos folds |
 | Porque é que o erro de treino com pesos pela distância é 0? | Cada ponto de treino é vizinho de si próprio a distância 0, e esse peso domina |
 | Porque tirar o `dti_with_loan`? | É uma combinação linear de outras duas colunas: contaria duas vezes a mesma informação na distância |
+| Como trata o kNN o desequilíbrio? | Com `class_weight="balanced"`: o voto de cada vizinho é multiplicado pelo peso da sua classe. Sem isso, a probabilidade seguia a taxa de *default* do treino e, com um limiar fixo, a percentagem de *Default* previstos caía de fold para fold (de 28% para 6%) |
 | O que faz a cache? | Guarda os 101 vizinhos da última pesquisa; as configurações com o mesmo treino e os mesmos pedidos usam-nos em vez de recalcular |

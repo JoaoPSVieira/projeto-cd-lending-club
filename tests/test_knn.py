@@ -121,6 +121,51 @@ def test_distance_weights_with_an_exact_match():
 
 
 # ---------------------------------------------------------------------------------------
+# Pesos das classes (class_weight)
+# ---------------------------------------------------------------------------------------
+
+def test_balanced_class_weight_by_hand():
+    X = np.array([[0.0], [1.0], [2.0], [3.0]])
+    labels = ["Default", "Good standing", "Good standing", "Good standing"]
+    model = KNNClassifier(n_neighbors=4, class_weight="balanced").fit(X, labels)
+    # pesos n / (2 x n_classe): Default 4 / 2 = 2; Good standing 4 / 6 = 2/3
+    assert model.class_weight_ == pytest.approx([2.0, 2 / 3])
+    # votos simples: 1 em 4 = 0,25; ponderados: 2 / (2 + 3 x 2/3) = 0,5
+    assert model.predict_proba(np.array([[1.5]]))[0, 0] == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize("weights", ["uniform", "distance"])
+def test_balanced_class_weight_is_an_increasing_transform(data, weights):
+    X, Q, _, labels = data
+    plain = KNNClassifier(n_neighbors=31, weights=weights).fit(X, labels)
+    balanced = KNNClassifier(n_neighbors=31, weights=weights, class_weight="balanced").fit(X, labels)
+    p = plain.predict_proba(Q)[:, 0]
+    rate = np.mean(labels == "Default")
+    w1, w0 = 1 / (2 * rate), 1 / (2 * (1 - rate))
+    proba = balanced.predict_proba(Q)
+    assert proba[:, 0] == pytest.approx(w1 * p / (w1 * p + w0 * (1 - p)))
+    assert proba.sum(axis=1) == pytest.approx(1.0)
+    assert (balanced.predict(Q) == "Default").sum() > (plain.predict(Q) == "Default").sum()
+
+
+def test_class_weight_none_and_dict(data):
+    X, Q, _, labels = data
+    plain = KNNClassifier(n_neighbors=15).fit(X, labels)
+    assert np.array_equal(plain.class_weight_, [1.0, 1.0])
+    ones = KNNClassifier(n_neighbors=15, class_weight={"Default": 1, "Good standing": 1}).fit(X, labels)
+    assert ones.predict_proba(Q) == pytest.approx(plain.predict_proba(Q))
+    heavier = KNNClassifier(n_neighbors=15, class_weight={"Default": 3}).fit(X, labels)
+    assert heavier.class_weight_ == pytest.approx([3.0, 1.0])
+    assert (heavier.predict(Q) == "Default").sum() > (plain.predict(Q) == "Default").sum()
+
+
+def test_invalid_class_weight(data):
+    X, _, _, labels = data
+    with pytest.raises(ValueError, match="class_weight"):
+        KNNClassifier(class_weight="auto").fit(X, labels)
+
+
+# ---------------------------------------------------------------------------------------
 # Vários k de uma vez (search_k e cache)
 # ---------------------------------------------------------------------------------------
 
@@ -163,8 +208,9 @@ def test_fingerprint_depends_on_content():
 def test_pipeline_clone_and_pickle(data):
     X, Q, _, labels = data
     pipe = Pipeline([("scale", StandardScaler()), ("model", KNNClassifier(n_neighbors=5))])
-    fitted = clone(pipe).set_params(model__n_neighbors=15, model__weights="distance").fit(X, labels)
-    assert fitted["model"].n_neighbors == 15
+    fitted = clone(pipe).set_params(model__n_neighbors=15, model__weights="distance",
+                                    model__class_weight="balanced").fit(X, labels)
+    assert fitted["model"].n_neighbors == 15 and fitted["model"].class_weight == "balanced"
     restored = pickle.loads(pickle.dumps(fitted))
     assert np.array_equal(restored.predict_proba(Q), fitted.predict_proba(Q))
 

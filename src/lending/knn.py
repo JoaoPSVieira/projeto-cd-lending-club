@@ -289,19 +289,46 @@ class KNNClassifier(ClassifierMixin, _KNNBase):
     A proporção da classe Default serve de probabilidade, para a AUC e para o limiar escolhido
     pelo runner. predict devolve a classe mais frequente entre os vizinhos.
 
-    Parameters: os de _KNNBase.
+    Pesos das classes (desequilíbrio): com class_weight="balanced", o voto de cada vizinho é
+    multiplicado pelo peso da sua classe, n / (n_classes x n_classe), calculado no treino. É a
+    mesma regra do scikit-learn e dos outros modelos do catálogo. Sem pesos, a proporção de
+    Default fica na escala da taxa de default do treino, e com um limiar fixo a percentagem de
+    Default previstos acompanha essa taxa de fold para fold. Dentro de um treino, os pesos são
+    uma transformação crescente da proporção simples, por isso não mudam a AUC.
+
+    Parameters: os de _KNNBase, mais
+        class_weight (str | dict | None): "balanced", {classe: peso} ou None (votos iguais)
 
     Attributes (depois do fit):
         classes_ (np.ndarray): Classes por ordem alfabética (como no scikit-learn)
         y_codes_ (np.ndarray): Índice da classe de cada linha de treino em classes_
+        class_weight_ (np.ndarray): Peso de cada classe, pela ordem de classes_
     """
+
+    def __init__(self, n_neighbors=15, weights="uniform", search_k=None, block_size=256,
+                 use_cache=True, class_weight=None):
+        super().__init__(n_neighbors=n_neighbors, weights=weights, search_k=search_k,
+                         block_size=block_size, use_cache=use_cache)
+        self.class_weight = class_weight
 
     def fit(self, X, y):
         X = self._fit_X(X)
         y = column_or_1d(y)
         check_consistent_length(X, y)
         self.classes_, self.y_codes_ = np.unique(y, return_inverse=True)
+        self.class_weight_ = self._class_weights()
         return self
+
+    def _class_weights(self):
+        if self.class_weight is None:
+            return np.ones(len(self.classes_))
+        if isinstance(self.class_weight, str) and self.class_weight == "balanced":
+            counts = np.bincount(self.y_codes_, minlength=len(self.classes_))
+            return len(self.y_codes_) / (len(self.classes_) * counts)
+        if isinstance(self.class_weight, dict):
+            return np.array([self.class_weight.get(c, 1.0) for c in self.classes_], dtype=np.float64)
+        raise ValueError("class_weight tem de ser 'balanced', um dicionário ou None; "
+                         f"recebido {self.class_weight!r}.")
 
     def predict_proba(self, X):
         """
@@ -309,11 +336,11 @@ class KNNClassifier(ClassifierMixin, _KNNBase):
             np.ndarray: (m, n_classes), proporção ponderada de cada classe, pela ordem de classes_
         """
         distances, indices = self.kneighbors(X)
-        w = self._neighbor_weights(distances)
         codes = self.y_codes_[indices]
+        w = self._neighbor_weights(distances) * self.class_weight_[codes]
         proba = np.column_stack([(w * (codes == c)).sum(axis=1) for c in range(len(self.classes_))])
         return proba / w.sum(axis=1, keepdims=True)
 
     def predict(self, X):
-        """Classe com maior proporção entre os vizinhos (votação da maioria, T04, p. 37)."""
+        """Classe com maior proporção ponderada entre os vizinhos (votação da maioria, T04, p. 37)."""
         return self.classes_[np.argmax(self.predict_proba(X), axis=1)]

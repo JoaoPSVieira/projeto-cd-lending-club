@@ -111,6 +111,13 @@ def test_collinear_feature_dropped_only_in_logistic():
     assert specs["Árvore"].drop_features == ()
 
 
+def test_supervised_classifiers_weight_the_classes():
+    # A docstring do catálogo garante-o: todos os supervisionados ponderam as classes
+    for spec in classification_specs(include_mlp=False)[2:]:
+        weighting = spec.factory().get_params()["class_weight"]
+        assert weighting in ("balanced", "balanced_subsample"), spec.name
+
+
 @pytest.mark.skipif(importlib.util.find_spec("keras") is None
                     or importlib.util.find_spec("lending.deep") is None,
                     reason="sem TensorFlow ou sem o deep.py (ramo mlp-keras ainda por juntar)")
