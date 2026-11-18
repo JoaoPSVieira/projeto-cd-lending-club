@@ -39,5 +39,6 @@ Módulos:
     baselines     Baselines: mediana por prazo e taxa de default do grau.
     boosting      LightGBM com paragem antecipada nas linhas mais recentes.
     model_catalog Modelos e grelhas da secção 3 (regression_specs, classification_specs).
+    knn           kNN de raiz em NumPy (NeighborSearch, KNNRegressor, KNNClassifier).
 
 """

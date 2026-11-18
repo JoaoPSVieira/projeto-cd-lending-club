@@ -10,7 +10,8 @@ Requisitos do enunciado cumpridos:
     - "Apply one bagging and one boosting ensemble model for each task": Random Forest e
       LightGBM (boosting.py).
     - Deep learning: MLP em Keras (deep.py).
-    - kNN de raiz: entra no bloco 2 (knn.py), com KNN_GRID.
+    - kNN de raiz em NumPy (knn.py): k e pesos da secção 3; todas as configurações pesquisam
+      os 101 vizinhos (search_k), por isso as distâncias de cada fold são calculadas uma vez.
     - Baselines: baselines.py e os Dummy do scikit-learn.
 
 Contagem (sem baselines), igual nas duas tarefas:
@@ -33,6 +34,7 @@ from lending.baselines import GradeRateBaseline, TermMedianBaseline
 from lending.boosting import LGBMEarlyStoppingClassifier, LGBMEarlyStoppingRegressor
 from lending.config import RANDOM_SEED
 from lending.experiment import ModelSpec
+from lending.knn import KNNClassifier, KNNRegressor
 
 # Grelhas da secção 3
 REGULARIZATION = [1e-3, 1e-2, 1e-1, 1.0, 10.0, 100.0]         # 6 valores de 10^-3 a 10^2
@@ -41,9 +43,10 @@ FOREST_GRID = {"max_features": ["sqrt", 0.3], "min_samples_leaf": [10, 50]}
 LGBM_GRID = {"learning_rate": [0.05, 0.1], "num_leaves": [15, 31, 63]}
 MLP_GRID = {"hidden_layers": [(64,), (128, 64), (256, 128, 64)], "learning_rate": [1e-3, 3e-4]}
 
-# Para o bloco 2 (kNN): k e pesos da secção 3; amostra por fold só na regressão
+# kNN: k e pesos da secção 3; amostra por fold só na regressão
 KNN_K = [5, 15, 31, 51, 101]
 KNN_WEIGHTS = ["uniform", "distance"]
+KNN_GRID = {"n_neighbors": KNN_K, "weights": KNN_WEIGHTS}
 KNN_REGRESSION_SAMPLE = 50_000
 
 # Features tiradas nos modelos sensíveis à colinearidade (regressão logística e kNN)
@@ -76,6 +79,8 @@ def regression_specs(include_mlp=True):
     specs = [
         ModelSpec("Mediana", lambda: DummyRegressor(strategy="median"), preprocess=False),
         ModelSpec("Mediana por prazo", TermMedianBaseline, preprocess=False),
+        ModelSpec("kNN", lambda: KNNRegressor(search_k=max(KNN_K)), KNN_GRID,
+                  max_train_rows=KNN_REGRESSION_SAMPLE),
         ModelSpec("Ridge", Ridge, {"alpha": REGULARIZATION}),
         ModelSpec("Árvore", lambda: DecisionTreeRegressor(random_state=RANDOM_SEED), TREE_GRID),
         ModelSpec("Random Forest", lambda: RandomForestRegressor(**FOREST_SETTINGS), FOREST_GRID),
@@ -102,6 +107,8 @@ def classification_specs(include_mlp=True):
         ModelSpec("Classe maioritária", lambda: DummyClassifier(strategy="most_frequent"),
                   preprocess=False),
         ModelSpec("Taxa do grau", GradeRateBaseline, preprocess=False),
+        ModelSpec("kNN", lambda: KNNClassifier(search_k=max(KNN_K)), KNN_GRID,
+                  drop_features=COLLINEAR_DROP),
         ModelSpec("Regressão logística",
                   lambda: LogisticRegression(class_weight="balanced", max_iter=2000),
                   {"C": REGULARIZATION}, drop_features=COLLINEAR_DROP),

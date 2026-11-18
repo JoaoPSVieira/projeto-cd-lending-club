@@ -94,9 +94,10 @@ def test_catalog_grids_match_section_3(specs_for):
     names = [s.name for s in specs]
     assert len(set(names)) == len(names)
     sizes = {s.name: len(s.configs()) for s in specs}
+    assert sizes["kNN"] == 10
     tuned = sum(n for name, n in sizes.items() if name in
-                {"Ridge", "Regressão logística", "Árvore", "Random Forest", "LightGBM"})
-    assert tuned == 6 + 8 + 4 + 6          # + MLP 6 + kNN 10 (bloco 2) = 40
+                {"kNN", "Ridge", "Regressão logística", "Árvore", "Random Forest", "LightGBM"})
+    assert tuned == 10 + 6 + 8 + 4 + 6     # + MLP 6 = 40, como na secção 3
     assert [s.name for s in specs if not s.preprocess] == names[:2]   # baselines
     for spec in specs:                     # todas as configurações são válidas
         for _, params in spec.configs():
@@ -106,6 +107,7 @@ def test_catalog_grids_match_section_3(specs_for):
 def test_collinear_feature_dropped_only_in_logistic():
     specs = {s.name: s for s in classification_specs(include_mlp=False)}
     assert specs["Regressão logística"].drop_features == ("dti_with_loan",)
+    assert specs["kNN"].drop_features == ("dti_with_loan",)
     assert specs["Árvore"].drop_features == ()
 
 

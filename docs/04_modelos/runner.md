@@ -1,5 +1,6 @@
 # Validação cruzada, métricas e catálogo de modelos
 
+Bloco 1 do plano da Parte 2. É a infraestrutura comum a todos os modelos supervisionados.
 
 | Ficheiro | Conteúdo |
 |---|---|
@@ -57,7 +58,7 @@ data = PickleStore.load(config.CLS_TRAIN_PKL, expected_type=pd.DataFrame)
 runner = CrossValidationRunner("classification")
 runner.folds(data)                         # tabela dos 3 folds
 
-specs = classification_specs()             # baselines + 5 famílias (o kNN entra no bloco 2)
+specs = classification_specs()             # baselines + 6 famílias (kNN, linear, árvore, RF, LightGBM, MLP)
 runner.run(data, specs)                    # retoma onde parou se for interrompido
 
 runner.summary()                           # todas as configurações, a melhor primeiro
@@ -135,7 +136,7 @@ Para começar do zero, apaga-se o CSV da tarefa e a pasta `oof` respetiva.
 | Random Forest | 300 árvores, `max_samples` 0,3 | Igual, `balanced_subsample` | `max_features` {√p, 0,3} × folha {10, 50} | 4 |
 | LightGBM | `LGBMEarlyStoppingRegressor` | `LGBMEarlyStoppingClassifier` (classes ponderadas) | `learning_rate` {0,05; 0,1} × `num_leaves` {15, 31, 63} | 6 |
 | MLP | `KerasMLPRegressor` | `KerasMLPClassifier` | 3 arquiteturas × 2 taxas de aprendizagem | 6 |
-| kNN (bloco 2) | 50 000 linhas por fold | Treino inteiro; sem `dti_with_loan` | k {5, 15, 31, 51, 101} × pesos {uniformes, distância} | 10 |
+| kNN (`knn.py`) | 50 000 linhas por fold | Treino inteiro; sem `dti_with_loan` | k {5, 15, 31, 51, 101} × pesos {uniformes, distância} | 10 |
 
 Total: 40 configurações por tarefa, mais as baselines, como na secção 3.
 
