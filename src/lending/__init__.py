@@ -32,4 +32,12 @@ Módulos:
 
     Fase 3 - seleção de modelos
     feature_engineering  Features novas: fichas (FEATURES) e FeatureBuilder (entra no pipeline).
+
+    Fase 4 -
+    experiment    Validação cruzada temporal de todos os modelos (CrossValidationRunner, ModelSpec).
+    evaluation    Métricas, limiar da classificação, matriz de confusão e bootstrap.
+    baselines     Baselines: mediana por prazo e taxa de default do grau.
+    boosting      LightGBM com paragem antecipada nas linhas mais recentes.
+    model_catalog Modelos e grelhas da secção 3 (regression_specs, classification_specs).
+
 """
