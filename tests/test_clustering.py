@@ -19,8 +19,8 @@ from sklearn.mixture import GaussianMixture
 
 from lending.clustering import (PROFILE_DESCRIPTORS, PROFILE_FEATURES, BorrowerProfiles,
                                 ClusterEvaluator, ClusterGrid, dunn_index, euclidean_distances,
-                                cached_csv, disjoint_halves, fit_predict, gmm_spec, group_profiles,
-                                kmeans_spec,
+                                cached_csv, disjoint_halves, fit_predict, gmm_spec, group_outcomes,
+                                group_profiles, kmeans_spec, outcome_observed, proportion_ci,
                                 match_labels, matched_share, model_info, seed_stability,
                                 subset_stability, within_cluster_ss)
 from lending.experiment import ModelSpec
@@ -321,6 +321,47 @@ def test_group_profiles_rejects_missing_groups():
     table = pd.DataFrame({"dti": [1.0, 2.0]})
     with pytest.raises(ValueError, match="sem grupo"):
         group_profiles(table, ["a", None])
+
+
+def loans_with_outcomes():
+    return pd.DataFrame({
+        "issue_d": pd.to_datetime(["2014-12-01", "2013-12-01", "2014-01-01", "2012-05-01",
+                                   "2011-03-01", "2010-07-01"]),
+        "term": [36.0, 60.0, 60.0, 36.0, 36.0, 36.0],
+        "loan_status": ["Fully Paid", "Charged Off", "Fully Paid", "Current",
+                        "Late (31-120 days)", None],
+        "int_rate": [10.0, 20.0, 15.0, 12.0, 18.0, 9.0],
+    })
+
+
+def test_outcome_observed_follows_the_cutoff():
+    observed = outcome_observed(loans_with_outcomes())
+    # 36 meses de 2014-12: termina 2017-12 (sim); 60 meses de 2013-12: termina 2018-12 (sim);
+    # 60 meses de 2014-01: termina 2019-01 (não); Current e em falta: desfecho desconhecido
+    assert observed.tolist() == [True, True, False, False, True, False]
+
+
+def test_proportion_ci_matches_the_wilson_formula():
+    p, low, high = proportion_ci([50], [100])
+    assert p[0] == 0.5
+    assert low[0] == pytest.approx(0.4038, abs=1e-4)
+    assert high[0] == pytest.approx(0.5962, abs=1e-4)
+    p, low, high = proportion_ci([0], [20])
+    assert low[0] == pytest.approx(0.0, abs=1e-12) and 0 < high[0] < 0.2
+
+
+def test_group_outcomes_counts_defaults_only_with_observed_outcome():
+    df = loans_with_outcomes()
+    table = group_outcomes(df, ["a", "a", "a", "b", "b", "b"])
+    assert table.loc["a", "empréstimos"] == 3
+    assert table.loc["a", "com desfecho"] == 2           # o 60 meses de 2014 fica de fora
+    assert table.loc["a", "defaults"] == 1               # Charged Off
+    assert table.loc["a", "default (%)"] == pytest.approx(50.0)
+    assert table.loc["a", "juro médio (%)"] == pytest.approx(15.0)   # todos os empréstimos
+    assert table.loc["a", "60 meses (%)"] == pytest.approx(200 / 3)
+    # Late depois do fim do prazo conta como Default (como na classificação)
+    assert table.loc["b", "com desfecho"] == 1 and table.loc["b", "defaults"] == 1
+    assert table.loc["a", "IC 95% inferior"] < 50 < table.loc["a", "IC 95% superior"]
 
 
 def test_stability_rejects_bad_inputs(blobs):

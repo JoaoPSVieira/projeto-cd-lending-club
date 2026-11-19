@@ -68,6 +68,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
 from lending import config
+from lending.cohorts import UNKNOWN_OUTCOME, make_target
 from lending.experiment import ModelSpec
 from lending.feature_engineering import FeatureBuilder, specs_for
 from lending.features import TaskFeatures
@@ -423,6 +424,105 @@ def group_profiles(table, labels, descriptors=PROFILE_DESCRIPTORS):
     profile.insert(0, "% dos empréstimos", 100 * sizes / len(labels))
     profile.insert(0, "empréstimos", sizes)
     return profile
+
+
+# =================================
+# = Risco dos grupos (pós-ajuste) =
+# =================================
+#
+# A taxa de juro e o desfecho NÃO entram no ajuste: são calculados depois de os grupos
+# estarem fixos, para lhes dar significado de negócio.
+
+# Corte de observação comum (Fase 1, docs/01_formulacao_problema/desenho_split.md): só se
+# conhece o desfecho dos empréstimos cujo prazo termina até esta data
+OBSERVATION_CUTOFF = pd.Timestamp("2018-12-31")
+
+
+def outcome_observed(df, cutoff=OBSERVATION_CUTOFF):
+    """
+    Empréstimos com o desfecho observável: prazo terminado até ao corte e estado conhecido
+
+    É a regra de observabilidade da classificação (36 meses com o prazo terminado),
+    alargada aos empréstimos de 60 meses que também terminam antes do corte (concedidos
+    até 2013-12). Ficam de fora os de 60 meses concedidos a partir de 2014: desses, só
+    teriam acabado os que pagaram ou falharam cedo (follow-up desigual), o que enviesaria a
+    taxa de default. Também ficam de fora os Current e os estados em falta.
+
+    Parameters:
+        df (pd.DataFrame): Com issue_d (data), term (meses) e loan_status
+        cutoff (pd.Timestamp): Corte de observação
+
+    Returns:
+        pd.Series: bool, mesmo índice que df
+    """
+    issue = pd.to_datetime(df["issue_d"])
+    # Mês da última prestação, contado em meses desde o ano 0 (a 1.ª prestação é no mês
+    # seguinte ao da concessão, por isso a última é issue_d + term meses)
+    last_payment = issue.dt.year * 12 + issue.dt.month - 1 + df["term"].astype("float64")
+    ended = last_payment <= cutoff.year * 12 + cutoff.month - 1
+    known = df["loan_status"].notna() & ~df["loan_status"].isin(UNKNOWN_OUTCOME)
+    return (ended & known).astype(bool)
+
+
+def proportion_ci(successes, n, z=1.96):
+    """
+    Proporção com intervalo de confiança de Wilson (95% por omissão)
+
+    O intervalo de Wilson comporta-se melhor do que o p ± z·√(p(1-p)/n) quando a proporção
+    está perto de 0 ou de 1 ou quando n é pequeno; com n grande, os dois coincidem.
+
+    Parameters:
+        successes, n (array-like): Contagens
+
+    Returns:
+        tuple[np.ndarray, np.ndarray, np.ndarray]: (proporção, limite inferior, limite superior)
+    """
+    successes = np.asarray(successes, dtype="float64")
+    n = np.asarray(n, dtype="float64")
+    p = successes / n
+    denominator = 1 + z ** 2 / n
+    center = (p + z ** 2 / (2 * n)) / denominator
+    half = z * np.sqrt(p * (1 - p) / n + z ** 2 / (4 * n ** 2)) / denominator
+    return p, center - half, center + half
+
+
+def group_outcomes(df, labels, cutoff=OBSERVATION_CUTOFF):
+    """
+    Taxa de juro e taxa de default de cada grupo
+
+    - Taxa de juro: em todos os empréstimos do grupo (é fixada na concessão, não depende do
+      tempo de observação).
+    - Default: só nos empréstimos com o desfecho observável (outcome_observed), com o alvo da
+      classificação (make_target: Charged Off / Default, e os At risk depois do fim do prazo,
+      contam como Default).
+
+    Parameters:
+        df (pd.DataFrame): Com int_rate, term, issue_d e loan_status
+        labels (array-like): Grupo de cada linha de df
+
+    Returns:
+        pd.DataFrame: Uma linha por grupo: empréstimos, juro médio (%), juro mediano (%),
+            60 meses (%), com desfecho, defaults, default (%) e o IC 95% (Wilson)
+    """
+    labels = pd.Series(np.asarray(labels), index=df.index, name="grupo")
+    observed = outcome_observed(df, cutoff)
+    is_default = pd.Series(False, index=df.index)
+    is_default[observed] = make_target(df.loc[observed, "loan_status"]) == "Default"
+
+    grouped = df.groupby(labels)
+    table = pd.DataFrame({
+        "empréstimos": labels.value_counts(),
+        "juro médio (%)": grouped["int_rate"].mean(),
+        "juro mediano (%)": grouped["int_rate"].median(),
+        "60 meses (%)": 100 * grouped["term"].apply(lambda t: (t == 60).mean()),
+        "com desfecho": observed.groupby(labels).sum(),
+        "defaults": is_default.groupby(labels).sum(),
+    })
+    rate, low, high = proportion_ci(table["defaults"], table["com desfecho"])
+    table["default (%)"] = 100 * rate
+    table["IC 95% inferior"] = 100 * low
+    table["IC 95% superior"] = 100 * high
+    return table
 
 
 # ================
