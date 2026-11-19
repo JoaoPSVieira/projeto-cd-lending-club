@@ -19,8 +19,9 @@ from sklearn.mixture import GaussianMixture
 
 from lending.clustering import (PROFILE_DESCRIPTORS, PROFILE_FEATURES, BorrowerProfiles,
                                 ClusterEvaluator, ClusterGrid, dunn_index, euclidean_distances,
-                                gmm_spec, kmeans_spec, match_labels, matched_share,
-                                model_info, within_cluster_ss)
+                                cached_csv, disjoint_halves, fit_predict, gmm_spec, kmeans_spec,
+                                match_labels, matched_share, model_info, seed_stability,
+                                subset_stability, within_cluster_ss)
 from lending.experiment import ModelSpec
 
 
@@ -235,6 +236,71 @@ def test_match_labels_rejects_bad_inputs():
         match_labels([0, 1], [0])
     with pytest.raises(ValueError, match="inteiros"):
         match_labels(["a", "b"], [0, 1])
+
+
+def test_fit_predict_labels_every_point_and_uses_the_seed(blobs):
+    X, _ = blobs
+    spec = counting_spec((3,))
+    labels = fit_predict(spec, {"n_clusters": 3}, X, fit_rows=np.arange(100), seed=7)
+    assert len(labels) == len(X)
+    spec_seeded = ModelSpec("k-means", partial(KMeans, n_init=1), {"n_clusters": [3]})
+    a = fit_predict(spec_seeded, {"n_clusters": 3}, X, seed=1)
+    b = fit_predict(spec_seeded, {"n_clusters": 3}, X, seed=1)
+    np.testing.assert_array_equal(a, b)
+
+
+def test_seed_stability_of_clear_groups_is_perfect(blobs):
+    X, _ = blobs
+    table = seed_stability(counting_spec((3,)), {"n_clusters": 3}, X)
+    assert len(table) == 10                       # 5 sementes -> 10 pares
+    assert list(table.columns) == ["a", "b", "ari", "matched"]
+    assert table["ari"].min() == pytest.approx(1.0)
+    assert table["matched"].min() == pytest.approx(1.0)
+
+
+def test_disjoint_halves_split_every_point_once():
+    splits = disjoint_halves(101, n_splits=3, seed=0)
+    assert len(splits) == 3
+    for a, b in splits:
+        assert len(a) == 50 and len(b) == 51
+        assert not set(a) & set(b)
+        assert sorted(np.concatenate([a, b])) == list(range(101))
+    assert not np.array_equal(splits[0][0], splits[1][0])
+    np.testing.assert_array_equal(disjoint_halves(101, 3, seed=0)[0][0], splits[0][0])
+
+
+def test_subset_stability_of_clear_groups_is_perfect(blobs):
+    X, _ = blobs
+    a, b = disjoint_halves(len(X), n_splits=1, seed=0)[0]
+    table = subset_stability(counting_spec((3,)), {"n_clusters": 3}, X, {"A": a, "B": b})
+    assert len(table) == 1
+    assert table.loc[0, "ari"] == pytest.approx(1.0)
+
+
+def test_subset_stability_of_noise_is_low():
+    # Sem estrutura (ruído uniforme), duas metades dão divisões diferentes com k alto
+    X = np.random.default_rng(0).uniform(size=(2_000, 2))
+    spec = ModelSpec("k-means", partial(KMeans, n_init=1, random_state=0), {"n_clusters": [8]})
+    splits = disjoint_halves(len(X), n_splits=3, seed=0)
+    ari = [subset_stability(spec, {"n_clusters": 8}, X, {"A": a, "B": b}).loc[0, "ari"]
+           for a, b in splits]
+    assert np.mean(ari) < 0.9
+
+
+def test_cached_csv_computes_once(tmp_path):
+    calls = []
+
+    def compute():
+        calls.append(1)
+        return pd.DataFrame({"x": [1, 2]})
+
+    path = tmp_path / "res" / "tabela.csv"
+    first = cached_csv(path, compute)
+    second = cached_csv(path, compute)
+    assert len(calls) == 1
+    pd.testing.assert_frame_equal(first, second)
+    cached_csv(path, compute, recompute=True)
+    assert len(calls) == 2
 
 
 def test_stability_rejects_bad_inputs(blobs):

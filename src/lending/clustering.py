@@ -397,6 +397,127 @@ def matched_share(reference, other):
     return float(np.mean(np.asarray(reference) == match_labels(reference, other)))
 
 
+# ================
+# = Estabilidade =
+# ================
+#
+# "Assess their stability" (enunciado): um agrupamento é estável se quase não muda quando se
+# repete o procedimento com outra semente ou com outros dados da mesma população. Em todos os
+# testes, cada modelo ajustado atribui um grupo a TODOS os pontos (predict), e as atribuições
+# comparam-se nos mesmos pontos com o ARI e a concordância (matched_share).
+
+# Sementes do teste de estabilidade (5, como no plano)
+STABILITY_SEEDS = [config.RANDOM_SEED + i for i in range(5)]
+
+
+def fit_predict(spec, params, X, fit_rows=None, seed=None):
+    """
+    Ajusta uma configuração (opcionalmente só em algumas linhas e com outra semente) e
+    devolve o grupo de todos os pontos de X
+
+    Parameters:
+        spec (ModelSpec), params (dict): Algoritmo e configuração
+        X (np.ndarray): Todos os pontos
+        fit_rows (np.ndarray | None): Linhas do ajuste (None = todas)
+        seed (int | None): Substitui o random_state da fábrica
+
+    Returns:
+        np.ndarray: Uma etiqueta por linha de X
+    """
+    X = np.asarray(X, dtype="float64")
+    model = spec.make(params)
+    if seed is not None:
+        model.set_params(random_state=seed)
+    model.fit(X if fit_rows is None else X[fit_rows])
+    return model.predict(X)
+
+
+def pairwise_agreement(labelings):
+    """
+    ARI e concordância entre todos os pares de agrupamentos dos mesmos pontos
+
+    Parameters:
+        labelings (dict[str, np.ndarray]): Pelo menos 2 agrupamentos
+
+    Returns:
+        pd.DataFrame: Uma linha por par (a, b, ari, matched)
+    """
+    table = ClusterEvaluator.stability(labelings)
+    table["matched"] = [matched_share(labelings[a], labelings[b])
+                        for a, b in zip(table["a"], table["b"])]
+    return table
+
+
+def seed_stability(spec, params, X, seeds=STABILITY_SEEDS):
+    """
+    Estabilidade à semente: o mesmo procedimento, nos mesmos dados, com sementes diferentes
+
+    Mede quanto os grupos dependem do início aleatório (centros iniciais do k-means++, início
+    do EM). Com n_init > 1, cada ajuste já escolhe o melhor de vários inícios.
+
+    Returns:
+        pd.DataFrame: Uma linha por par de sementes (10 pares com 5 sementes)
+    """
+    return pairwise_agreement({seed: fit_predict(spec, params, X, seed=seed) for seed in seeds})
+
+
+def disjoint_halves(n, n_splits=5, seed=config.RANDOM_SEED):
+    """
+    Divisões aleatórias dos n pontos em duas metades sem pontos em comum
+
+    Returns:
+        list[tuple[np.ndarray, np.ndarray]]: n_splits pares (metade A, metade B)
+    """
+    rng = np.random.default_rng(seed)
+    splits = []
+    for _ in range(n_splits):
+        order = rng.permutation(n)
+        splits.append((np.sort(order[: n // 2]), np.sort(order[n // 2:])))
+    return splits
+
+
+def subset_stability(spec, params, X, subsets):
+    """
+    Estabilidade aos dados: ajusta em cada subconjunto e compara os grupos de todos os pontos
+
+    Com duas metades disjuntas, mede se outra amostra da mesma população daria os mesmos
+    grupos. Com dois períodos (ex.: 2007-2012 e 2013-2014), mede se os grupos sobrevivem à
+    mudança da população no tempo.
+
+    Parameters:
+        subsets (dict[str, np.ndarray]): Nome -> linhas do ajuste
+
+    Returns:
+        pd.DataFrame: Uma linha por par de subconjuntos
+    """
+    return pairwise_agreement({name: fit_predict(spec, params, X, fit_rows=rows)
+                               for name, rows in subsets.items()})
+
+
+def cached_csv(path, compute, recompute=False):
+    """
+    Lê um resultado guardado em CSV ou, se não existir (ou recompute=True), calcula-o e grava-o
+
+    É a cache das análises que não passam pela ClusterGrid (ex.: a estabilidade): o
+    RECALCULAR do notebook passa como recompute.
+
+    Parameters:
+        path (str | Path): Ficheiro CSV
+        compute (Callable[[], pd.DataFrame]): Cálculo, só chamado quando é preciso
+        recompute (bool): True ignora o ficheiro guardado
+
+    Returns:
+        pd.DataFrame
+    """
+    path = Path(path)
+    if path.exists() and not recompute:
+        return pd.read_csv(path)
+    table = compute()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    table.to_csv(path, index=False)
+    return table
+
+
 # ====================
 # = BorrowerProfiles =
 # ====================
