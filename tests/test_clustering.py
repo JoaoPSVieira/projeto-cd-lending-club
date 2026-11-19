@@ -5,6 +5,9 @@ O cdist do SciPy e as medidas do scikit-learn aparecem aqui SÓ como referência
 confirmar os resultados do índice de Dunn e da WSS, que são calculados por nós.
 """
 
+import json
+from functools import partial
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -12,10 +15,12 @@ from scipy.spatial.distance import cdist
 from sklearn.cluster import KMeans
 from sklearn.datasets import make_blobs
 from sklearn.metrics import silhouette_score
+from sklearn.mixture import GaussianMixture
 
 from lending.clustering import (PROFILE_DESCRIPTORS, PROFILE_FEATURES, BorrowerProfiles,
-                                ClusterEvaluator, dunn_index, euclidean_distances,
-                                within_cluster_ss)
+                                ClusterEvaluator, ClusterGrid, dunn_index, euclidean_distances,
+                                kmeans_spec, within_cluster_ss)
+from lending.experiment import ModelSpec
 
 
 @pytest.fixture
@@ -312,3 +317,97 @@ def test_profiles_reject_inconsistent_lists():
         BorrowerProfiles(features=["fico_range_low", "dti"], log_features=["annual_inc"])
     with pytest.raises(ValueError, match="descritores"):
         BorrowerProfiles(descriptors=["dti"])
+
+
+# ---------------------------------------------------------------------------------------
+# Grelhas (ClusterGrid)
+# ---------------------------------------------------------------------------------------
+
+class CountingKMeans(KMeans):
+    """KMeans que conta quantas vezes foi ajustado (para testar a retoma)."""
+    fits = 0
+
+    def fit(self, X, y=None, sample_weight=None):
+        CountingKMeans.fits += 1
+        return super().fit(X, y, sample_weight)
+
+
+def counting_spec(k_values=(2, 3, 4)):
+    factory = partial(CountingKMeans, n_init=3, random_state=0)
+    return ModelSpec("k-means", factory, {"n_clusters": list(k_values)})
+
+
+@pytest.fixture
+def grid(tmp_path):
+    CountingKMeans.fits = 0
+    return ClusterGrid("teste", results_dir=tmp_path / "results", labels_dir=tmp_path / "labels",
+                       verbose=False)
+
+
+def test_kmeans_spec_default_grid():
+    spec = kmeans_spec()
+    assert spec.name == "k-means"
+    assert [params["n_clusters"] for _, params in spec.configs()] == list(range(2, 11))
+    model = spec.make({"n_clusters": 4})
+    assert model.n_init == 10 and model.random_state == 42
+
+
+def test_grid_runs_every_configuration(grid, blobs):
+    X, _ = blobs
+    table = grid.run(X, [counting_spec()])
+    assert len(table) == 3
+    assert grid.results_path.name == "clustering_teste.csv"
+    assert {"n_iter", "wss", "silhouette", "davies_bouldin", "dunn", "fit_seconds"} <= set(table.columns)
+    # Os blobs têm 3 grupos: a silhueta é máxima em k = 3
+    best = table.loc[table["silhouette"].idxmax(), "params"]
+    assert json.loads(best) == {"n_clusters": 3}
+    # A WSS medida é a inertia do k-means (ajustado em todos os pontos)
+    for row in table.itertuples():
+        labels = grid.labels(row.model, row.config_id)
+        assert len(labels) == len(X)
+        assert row.wss == pytest.approx(within_cluster_ss(X, labels))
+
+
+def test_grid_resumes_without_refitting(grid, blobs):
+    X, _ = blobs
+    first = grid.run(X, [counting_spec()])
+    assert CountingKMeans.fits == 3
+    second = grid.run(X, [counting_spec((2, 3, 4, 5))])   # só k = 5 é novo
+    assert CountingKMeans.fits == 4
+    assert len(second) == 4
+    pd.testing.assert_frame_equal(second.iloc[:3].reset_index(drop=True), first)
+
+
+def test_grid_recompute_starts_again(grid, blobs):
+    X, _ = blobs
+    grid.run(X, [counting_spec()])
+    table = grid.run(X, [counting_spec((2,))], recompute=True)
+    assert CountingKMeans.fits == 4
+    assert len(table) == 1
+
+
+def test_grid_refits_a_configuration_without_labels(grid, blobs):
+    X, _ = blobs
+    table = grid.run(X, [counting_spec()])
+    lost = table.iloc[0]
+    grid._labels_path(lost["model"], lost["config_id"]).unlink()
+    again = grid.run(X, [counting_spec()])
+    assert CountingKMeans.fits == 4
+    assert len(again) == 3                                  # sem linhas repetidas
+    assert again["config_id"].is_unique
+
+
+def test_grid_fits_on_a_sample_but_labels_every_point(grid, blobs):
+    X, _ = blobs
+    spec = ModelSpec("GMM", partial(GaussianMixture, random_state=0),
+                     {"n_components": [3]}, max_train_rows=200)
+    table = grid.run(X, [spec])
+    row = table.iloc[0]
+    assert row["n_fit"] == 200 and row["n_points"] == len(X)
+    assert {"bic", "aic", "converged"} <= set(table.columns)
+    assert len(grid.labels(row["model"], row["config_id"])) == len(X)
+
+
+def test_grid_labels_must_exist(grid):
+    with pytest.raises(FileNotFoundError):
+        grid.labels("k-means", "nao_existe")

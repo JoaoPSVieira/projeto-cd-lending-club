@@ -49,8 +49,16 @@ Amostras:
     MESMOS pontos e são comparáveis entre si. A WSS e o Davies-Bouldin usam todos os pontos.
 """
 
+import json
+import re
+import shutil
+import time
+from functools import partial
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
+from sklearn.cluster import KMeans
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import adjusted_rand_score, davies_bouldin_score, silhouette_score
@@ -58,13 +66,23 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
 from lending import config
+from lending.experiment import ModelSpec
 from lending.feature_engineering import FeatureBuilder, specs_for
 from lending.features import TaskFeatures
 from lending.preprocessing import QuantileClipper
+from lending.storage import PickleStore
 
 # Tamanhos das amostras da silhueta e do Dunn (plano da Parte 2)
 SILHOUETTE_SAMPLE = 20_000
 DUNN_SAMPLE = 5_000
+
+# Número de grupos testado no clustering de mutuários (plano da Parte 2)
+K_VALUES = list(range(2, 11))
+
+# Onde ficam os resultados das grelhas (CSV, entram no Git) e os grupos de cada ponto
+# (pickles, fora do Git, como as previsões fora do fold da classificação)
+RESULTS_DIR = config.REPORTS_DIR / "results"
+LABELS_DIR = config.PROCESSED_DIR / "clustering"
 
 # Linhas por bloco no cálculo das distâncias do Dunn: 1 000 x 5 000 distâncias em float64
 # ocupam 40 MB, em vez dos 200 MB da matriz completa
@@ -455,3 +473,185 @@ class BorrowerProfiles:
         """
         return Pipeline([("features", FeatureBuilder("clustering")),
                          ("pre", self.preprocessor())])
+
+
+# ===========
+# = Grelhas =
+# ===========
+
+def kmeans_spec(k_values=K_VALUES):
+    """
+    Grelha do k-means: número de grupos k
+
+    n_init=10: o k-means converge para um mínimo local que depende dos centros iniciais;
+    corre 10 inícios (k-means++) e fica o de menor WSS. random_state fixa os inícios.
+
+    Returns:
+        ModelSpec: Mesmo formato das grelhas da classificação e da regressão
+    """
+    factory = partial(KMeans, n_init=10, random_state=config.RANDOM_SEED)
+    return ModelSpec("k-means", factory, {"n_clusters": list(k_values)})
+
+
+def model_info(model, X_fit):
+    """
+    Informação própria de cada algoritmo, depois do ajuste
+
+    Returns:
+        dict: n_iter (iterações até convergir), converged (GMM), bic e aic (GMM: medidas
+            de verosimilhança penalizada, calculadas nos dados do ajuste)
+    """
+    info = {}
+    if hasattr(model, "n_iter_"):
+        info["n_iter"] = int(model.n_iter_)
+    if hasattr(model, "converged_"):
+        info["converged"] = bool(model.converged_)
+    if hasattr(model, "bic"):
+        info["bic"] = float(model.bic(X_fit))
+        info["aic"] = float(model.aic(X_fit))
+    return info
+
+
+def _slug(name):
+    """Nome seguro para pastas e ficheiros (ex.: "k-means" -> "k_means")."""
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+
+
+class ClusterGrid:
+    """
+    Corre (ou continua) as grelhas dos algoritmos de clustering e mede cada agrupamento
+
+    Para cada configuração de cada ModelSpec:
+        1. ajusta o modelo em X (ou numa amostra de spec.max_train_rows linhas, semente 42);
+        2. atribui um grupo a TODOS os pontos de X (predict);
+        3. mede o agrupamento com o ClusterEvaluator (sempre nos mesmos pontos);
+        4. grava uma linha no CSV de resultados e os grupos de cada ponto num pickle.
+
+    Retomável, como o runner da validação cruzada: as configurações que já estão no CSV e
+    têm os grupos gravados não voltam a correr. Com recompute=True (o RECALCULAR dos
+    notebooks) apaga o CSV e os grupos desta grelha e calcula tudo de novo.
+
+    Attributes:
+        name (str): Nome da grelha (ex.: "borrowers"); dá o nome aos ficheiros
+        evaluator (ClusterEvaluator): Medidas internas
+        results_path (Path): reports/results/clustering_<name>.csv
+        labels_dir (Path): data/processed/clustering/<name>/
+
+    Methods:
+        run(X, specs, recompute=False), results(), labels(model, config_id), clear()
+
+    Exemplo:
+        grid = ClusterGrid("borrowers")
+        table = grid.run(X, [kmeans_spec()], recompute=RECALCULAR)
+    """
+
+    def __init__(self, name, evaluator=None, results_dir=RESULTS_DIR, labels_dir=LABELS_DIR,
+                 verbose=True):
+        self.name = name
+        self.evaluator = ClusterEvaluator() if evaluator is None else evaluator
+        self.results_path = Path(results_dir) / f"clustering_{_slug(name)}.csv"
+        self.labels_dir = Path(labels_dir) / _slug(name)
+        self.verbose = verbose
+
+    # ------------------------------------------------------------------ correr
+
+    def run(self, X, specs, recompute=False):
+        """
+        Parameters:
+            X (pd.DataFrame | np.ndarray): Matriz já pré-processada (ex.: BorrowerProfiles)
+            specs (list[ModelSpec]): Algoritmos e grelhas
+            recompute (bool): True apaga os resultados guardados desta grelha e recomeça
+
+        Returns:
+            pd.DataFrame: Todas as linhas de resultados desta grelha (results())
+        """
+        if recompute:
+            self.clear()
+        X = np.asarray(X, dtype="float64")
+        done = {(r.model, r.config_id) for r in self.results().itertuples()
+                if self._labels_path(r.model, r.config_id).exists()}
+
+        for spec in specs:
+            fit_rows = self._fit_rows(len(X), spec.max_train_rows)
+            for cid, params in spec.configs():
+                if (spec.name, cid) in done:
+                    continue
+                model = spec.make(params)
+                start = time.perf_counter()
+                model.fit(X[fit_rows])
+                fit_seconds = time.perf_counter() - start
+
+                start = time.perf_counter()
+                labels = model.predict(X).astype("int16")
+                predict_seconds = time.perf_counter() - start
+
+                start = time.perf_counter()
+                scores = self.evaluator.evaluate(X, labels)
+                eval_seconds = time.perf_counter() - start
+
+                PickleStore.save(labels, self._labels_path(spec.name, cid))
+                row = {"model": spec.name, "config_id": cid,
+                       "params": json.dumps(params, sort_keys=True, default=str),
+                       "n_points": len(X), "n_fit": len(fit_rows),
+                       "fit_seconds": round(fit_seconds, 2),
+                       "predict_seconds": round(predict_seconds, 2),
+                       "eval_seconds": round(eval_seconds, 2),
+                       **model_info(model, X[fit_rows]), **scores,
+                       "timestamp": pd.Timestamp.now().isoformat(timespec="seconds")}
+                self._save_row(row)
+                done.add((spec.name, cid))
+                if self.verbose:
+                    print(f"[{self.name}] {spec.name} {params} | silhueta "
+                          f"{scores['silhouette']:.3f} | {fit_seconds:.1f} s")
+        return self.results()
+
+    @staticmethod
+    def _fit_rows(n, max_rows):
+        """Linhas do ajuste: todas, ou uma amostra fixa (semente 42) de max_rows linhas."""
+        if max_rows is None or max_rows >= n:
+            return np.arange(n)
+        rng = np.random.default_rng(config.RANDOM_SEED)
+        return np.sort(rng.choice(n, size=max_rows, replace=False))
+
+    # ------------------------------------------------------------------ ficheiros
+
+    def _labels_path(self, model, cid):
+        return self.labels_dir / _slug(model) / f"{cid}.pkl"
+
+    def _save_row(self, row):
+        """Acrescenta a linha ao CSV, substituindo uma linha antiga da mesma configuração."""
+        old = self.results()
+        old = old[~((old["model"] == row["model"]) & (old["config_id"] == row["config_id"]))]
+        table = pd.DataFrame([row]) if old.empty else pd.concat([old, pd.DataFrame([row])],
+                                                                ignore_index=True)
+        self.results_path.parent.mkdir(parents=True, exist_ok=True)
+        table.to_csv(self.results_path, index=False)
+
+    def results(self):
+        """
+        Returns:
+            pd.DataFrame: Uma linha por algoritmo x configuração (vazio se ainda não correu)
+        """
+        if not self.results_path.exists():
+            return pd.DataFrame(columns=["model", "config_id", "params"])
+        # config_id como texto: um identificador só com dígitos seria lido como número
+        return pd.read_csv(self.results_path, dtype={"model": str, "config_id": str, "params": str})
+
+    def labels(self, model, cid):
+        """
+        Grupo de cada ponto de X numa configuração já corrida
+
+        Returns:
+            np.ndarray: int16, uma etiqueta por linha de X (pela ordem de X)
+        """
+        path = self._labels_path(model, cid)
+        if not path.exists():
+            raise FileNotFoundError(f"Sem grupos gravados para {model} {cid}: correr run() primeiro.")
+        return PickleStore.load(path)
+
+    def clear(self):
+        """Apaga o CSV e os grupos gravados desta grelha."""
+        if self.results_path.exists():
+            self.results_path.unlink()
+        if self.labels_dir.exists():
+            shutil.rmtree(self.labels_dir)
