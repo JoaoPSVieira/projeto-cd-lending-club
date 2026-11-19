@@ -12,14 +12,15 @@ import numpy as np
 import pandas as pd
 import pytest
 from scipy.spatial.distance import cdist
-from sklearn.cluster import KMeans
+from sklearn.cluster import DBSCAN, KMeans
 from sklearn.datasets import make_blobs
 from sklearn.metrics import silhouette_score
 from sklearn.mixture import GaussianMixture
 
 from lending.clustering import (PROFILE_DESCRIPTORS, PROFILE_FEATURES, BorrowerProfiles,
                                 ClusterEvaluator, ClusterGrid, dunn_index, euclidean_distances,
-                                cached_csv, disjoint_halves, fit_predict, gmm_spec, group_outcomes,
+                                cached_csv, core_distances, dbscan_scan, disjoint_halves,
+                                fit_predict, gmm_spec, group_outcomes,
                                 group_profiles, kmeans_spec, outcome_observed, proportion_ci,
                                 match_labels, matched_share, model_info, seed_stability,
                                 subset_stability, within_cluster_ss)
@@ -321,6 +322,27 @@ def test_group_profiles_rejects_missing_groups():
     table = pd.DataFrame({"dti": [1.0, 2.0]})
     with pytest.raises(ValueError, match="sem grupo"):
         group_profiles(table, ["a", None])
+
+
+def test_core_distances_agree_with_dbscan_core_points(blobs):
+    X, _ = blobs
+    distances = core_distances(X, min_samples=10)
+    assert len(distances) == len(X) and np.all(np.diff(distances) >= 0)
+    for eps in (0.3, 0.6, 1.0):
+        core = DBSCAN(eps=eps, min_samples=10).fit(X).core_sample_indices_
+        assert len(core) == int((distances <= eps).sum())
+
+
+def test_dbscan_scan_finds_the_blobs_and_reports_noise(blobs):
+    X, labels = blobs
+    table = dbscan_scan(X, eps_values=[0.05, 1.0], min_samples_values=[10], reference=labels)
+    assert list(table.columns) == ["min_samples", "eps", "n_clusters", "noise_pct", "largest_pct",
+                                   "second_pct", "silhouette", "ari_reference", "fit_seconds"]
+    tiny, good = table.iloc[0], table.iloc[1]
+    assert tiny["n_clusters"] == 0 and tiny["noise_pct"] == 100.0      # eps pequeno: tudo ruído
+    assert np.isnan(tiny["silhouette"])
+    assert good["n_clusters"] == 3 and good["noise_pct"] < 5
+    assert good["ari_reference"] > 0.9
 
 
 def loans_with_outcomes():

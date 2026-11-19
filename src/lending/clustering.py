@@ -59,11 +59,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy.optimize import linear_sum_assignment
-from sklearn.cluster import KMeans
+from sklearn.cluster import DBSCAN, KMeans
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import adjusted_rand_score, davies_bouldin_score, silhouette_score
 from sklearn.mixture import GaussianMixture
+from sklearn.neighbors import NearestNeighbors
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
@@ -424,6 +425,76 @@ def group_profiles(table, labels, descriptors=PROFILE_DESCRIPTORS):
     profile.insert(0, "% dos empréstimos", 100 * sizes / len(labels))
     profile.insert(0, "empréstimos", sizes)
     return profile
+
+
+# ==========
+# = DBSCAN =
+# ==========
+#
+# DBSCAN (Ester et al., 1996): um ponto é "núcleo" se tiver pelo menos min_samples pontos
+# (incluindo ele próprio) a uma distância <= eps. Os núcleos ligados entre si formam um grupo;
+# os pontos perto de um núcleo juntam-se a esse grupo; os restantes são ruído (etiqueta -1).
+# Não precisa de k, mas só separa grupos se houver zonas de baixa densidade entre eles.
+
+def core_distances(X, min_samples):
+    """
+    Distância a partir da qual cada ponto passa a ser núcleo no DBSCAN, por ordem crescente
+
+    É a distância ao (min_samples - 1)-ésimo vizinho (o próprio ponto conta para o
+    min_samples, como no scikit-learn). Ordenada, dá o gráfico "k-distância" usado para
+    escolher o eps: um "joelho" na curva indica um eps que separa as zonas densas do ruído.
+    Com eps = d, a fração de núcleos é a fração de pontos com distância <= d.
+
+    Parameters:
+        X (np.ndarray): Pontos (já padronizados)
+        min_samples (int): Parâmetro do DBSCAN
+
+    Returns:
+        np.ndarray: Uma distância por ponto, por ordem crescente
+    """
+    distances, _ = NearestNeighbors(n_neighbors=min_samples).fit(X).kneighbors(X)
+    return np.sort(distances[:, -1])
+
+
+def dbscan_scan(X, eps_values, min_samples_values, reference=None):
+    """
+    Corre o DBSCAN numa grelha de eps x min_samples e resume cada resultado
+
+    Parameters:
+        X (np.ndarray): Pontos (uma amostra: a procura de vizinhos cresce com n e com eps)
+        eps_values, min_samples_values (list): Grelha
+        reference (array-like | None): Grupos de referência dos mesmos pontos (ex.: k-means),
+            para o ARI; o ruído conta como um grupo à parte
+
+    Returns:
+        pd.DataFrame: Uma linha por configuração: min_samples, eps, n_clusters (sem o ruído),
+            noise_pct, largest_pct e second_pct (% dos pontos nos dois maiores grupos),
+            silhouette (só nos pontos que não são ruído, com >= 2 grupos), ari_reference,
+            fit_seconds
+    """
+    X = np.asarray(X, dtype="float64")
+    rows = []
+    for min_samples in min_samples_values:
+        for eps in eps_values:
+            start = time.perf_counter()
+            labels = DBSCAN(eps=eps, min_samples=min_samples).fit_predict(X)
+            seconds = time.perf_counter() - start
+            clustered = labels >= 0
+            sizes = np.sort(np.bincount(labels[clustered]))[::-1] if clustered.any() else np.array([])
+            silhouette = np.nan
+            if len(sizes) >= 2:
+                silhouette = float(silhouette_score(X[clustered], labels[clustered]))
+            rows.append({
+                "min_samples": min_samples, "eps": eps, "n_clusters": len(sizes),
+                "noise_pct": 100 * (~clustered).mean(),
+                "largest_pct": 100 * sizes[0] / len(X) if len(sizes) else 0.0,
+                "second_pct": 100 * sizes[1] / len(X) if len(sizes) >= 2 else 0.0,
+                "silhouette": silhouette,
+                "ari_reference": (np.nan if reference is None
+                                  else adjusted_rand_score(reference, labels)),
+                "fit_seconds": round(seconds, 2),
+            })
+    return pd.DataFrame(rows)
 
 
 # =================================
