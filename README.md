@@ -73,6 +73,11 @@ Cada notebook lê os ficheiros gerados pelos anteriores, por isso a ordem import
   7b. `R/pipeline_pca.Rmd`: o mesmo pipeline em R (recipes), com verificação cruzada do PCA
 8. `03_features.ipynb`: features novas, verificadas no pipeline
 
+Parte 2 (modelação):
+
+9. `04a_knn.ipynb`: kNN de raiz (estrutura de dados e verificação)
+10. `04c_classificacao.ipynb`: classificação: os 8 modelos na validação cruzada, comparação, interpretação e modelo final (cerca de 25 minutos; ver `docs/04_modelos/classificacao.md`)
+
 ## Entrega da Parte 1
 
 - Relatório: `reports/relatorio_parte1.pdf` (`reports/relatorio/`)
