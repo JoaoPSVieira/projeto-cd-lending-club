@@ -31,6 +31,16 @@ Medidas internas (só usam os dados e os grupos, porque no clustering não há a
 O índice de Dunn não existe no scikit-learn e está implementado aqui com NumPy
 (dunn_index). As restantes medidas e o ARI vêm do scikit-learn.
 
+Perfis dos mutuários (BorrowerProfiles):
+    As 8 variáveis do ajuste seguem o exemplo do enunciado (FICO, DTI, antiguidade do
+    crédito, utilização) e o plano da Parte 2. O pré-processamento repete os passos do
+    pipeline da Parte 1 (log nos montantes, clipping aos percentis 0,5-99,5, imputação pela
+    mediana, padronização) com uma diferença: SEM indicadores de "em falta". Um indicador
+    0/1 raro, depois de padronizado, vale dezenas de desvios nas poucas linhas com 1 (com
+    0,07% de uns, cerca de 37) e dominaria a distância euclidiana. Pela mesma razão, as
+    binárias (ever_delinquent, has_public_record) ficam fora do ajuste e só descrevem os
+    grupos.
+
 Amostras:
     A silhueta e o Dunn calculam todas as distâncias entre pares de pontos (n² operações),
     o que é impossível com 466 124 empréstimos. Calculam-se numa amostra aleatória (por
@@ -41,9 +51,16 @@ Amostras:
 
 import numpy as np
 import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
 from sklearn.metrics import adjusted_rand_score, davies_bouldin_score, silhouette_score
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
 from lending import config
+from lending.feature_engineering import FeatureBuilder, specs_for
+from lending.features import TaskFeatures
+from lending.preprocessing import QuantileClipper
 
 # Tamanhos das amostras da silhueta e do Dunn (plano da Parte 2)
 SILHOUETTE_SAMPLE = 20_000
@@ -52,6 +69,30 @@ DUNN_SAMPLE = 5_000
 # Linhas por bloco no cálculo das distâncias do Dunn: 1 000 x 5 000 distâncias em float64
 # ocupam 40 MB, em vez dos 200 MB da matriz completa
 DUNN_CHUNK = 1_000
+
+# Variáveis do perfil do mutuário que entram no ajuste (unidades originais).
+# fico_range_low representa o FICO: o fico_range_high é sempre low + 4 (+5 em 34 casos),
+# por isso as duas dariam o mesmo valor padronizado e o FICO contaria a dobrar.
+PROFILE_FEATURES = ["fico_range_low", "dti", "revol_util", "annual_inc", "loan_to_income",
+                    "revol_to_income", "open_acc_pct", "credit_history_years"]
+# Montantes em USD: log(1 + x) antes do resto, como no pipeline da Parte 1
+PROFILE_LOG = ["annual_inc"]
+# Binárias: só descrevem os grupos depois do ajuste
+PROFILE_DESCRIPTORS = ["ever_delinquent", "has_public_record"]
+
+# Nomes legíveis para tabelas e figuras
+PROFILE_LABELS = {
+    "fico_range_low": "FICO",
+    "dti": "DTI (%)",
+    "revol_util": "Utilização rotativa (%)",
+    "annual_inc": "Rendimento anual (USD)",
+    "loan_to_income": "Montante / rendimento",
+    "revol_to_income": "Saldo rotativo / rendimento",
+    "open_acc_pct": "Contas abertas (%)",
+    "credit_history_years": "Antiguidade do crédito (anos)",
+    "ever_delinquent": "Já teve atrasos",
+    "has_public_record": "Tem registo público",
+}
 
 
 # ======================
@@ -283,3 +324,134 @@ class ClusterEvaluator:
         rows = [{"a": a, "b": b, "ari": adjusted_rand_score(labelings[a], labelings[b])}
                 for i, a in enumerate(names) for b in names[i + 1:]]
         return pd.DataFrame(rows)
+
+
+# ====================
+# = BorrowerProfiles =
+# ====================
+
+class BorrowerProfiles:
+    """
+    Variáveis do clustering de mutuários e o seu pré-processamento
+
+    Passos do pipeline (o que é aprendido no fit está entre parênteses):
+        FeatureBuilder("clustering")   calcula as features novas (rácios, antiguidade, binárias)
+        Montantes (PROFILE_LOG)        log(1 + x) -> clipping (percentis) -> imputação (mediana)
+                                       -> padronização (média, desvio)
+        Restantes variáveis            clipping (percentis) -> imputação (mediana) -> padronização
+    Sem indicadores de "em falta" e sem as binárias (ver a docstring do módulo).
+
+    O clustering é descritivo e não tem teste: o pré-processamento é ajustado em todos os
+    empréstimos do clustering (2007-06 a 2014-12). O teste de 2015 nunca é usado.
+
+    Attributes:
+        features (list[str]): Variáveis do ajuste
+        log_features (list[str]): Variáveis com log(1 + x) (subconjunto de features)
+        descriptors (list[str]): Variáveis que só descrevem os grupos
+
+    Methods:
+        source_columns(): Colunas dos dados de que o pipeline precisa
+        table(df): Variáveis do ajuste + descritores, em unidades originais
+        preprocessor(): ColumnTransformer por ajustar
+        pipeline(): FeatureBuilder + preprocessor, por ajustar
+
+    Exemplo:
+        profiles = BorrowerProfiles()
+        data = PickleStore.load(config.ACCEPTED_DEV_PKL, expected_type=pd.DataFrame)
+        X = profiles.pipeline().fit_transform(data[profiles.source_columns()])
+        original = profiles.table(data)
+    """
+
+    def __init__(self, features=PROFILE_FEATURES, log_features=PROFILE_LOG,
+                 descriptors=PROFILE_DESCRIPTORS):
+        """
+        Raises:
+            ValueError: Se uma variável não for elegível no clustering (tabela de
+                elegibilidade da Fase 1 ou features novas do clustering) ou se uma
+                variável com log não estiver entre as do ajuste
+        """
+        self.features = list(features)
+        self.log_features = list(log_features)
+        self.descriptors = list(descriptors)
+
+        not_in_fit = sorted(set(self.log_features) - set(self.features))
+        if not_in_fit:
+            raise ValueError(f"Variáveis com log que não entram no ajuste: {not_in_fit}")
+        overlap = sorted(set(self.features) & set(self.descriptors))
+        if overlap:
+            raise ValueError(f"Variáveis no ajuste e nos descritores ao mesmo tempo: {overlap}")
+
+        engineered = {spec.name for spec in specs_for("clustering")}
+        eligible = set(TaskFeatures("clustering").columns) | engineered
+        ineligible = [c for c in self.features + self.descriptors if c not in eligible]
+        if ineligible:
+            raise ValueError(f"Variáveis não elegíveis no clustering: {ineligible}")
+
+    def source_columns(self):
+        """
+        Colunas dos dados de que o pipeline precisa
+
+        As variáveis originais + as colunas de origem de TODAS as features novas do
+        clustering (o FeatureBuilder calcula-as todas, mesmo as que não são usadas).
+
+        Returns:
+            list[str]: Sem repetições
+        """
+        engineered = {spec.name for spec in specs_for("clustering")}
+        direct = [c for c in self.features + self.descriptors if c not in engineered]
+        sources = [c for spec in specs_for("clustering") for c in spec.sources]
+        return list(dict.fromkeys(direct + sources))
+
+    def table(self, df):
+        """
+        Variáveis do ajuste + descritores em unidades originais (antes do pré-processamento)
+
+        Serve para descrever os grupos (medianas por grupo, taxas das binárias).
+
+        Parameters:
+            df (pd.DataFrame): Dados com as colunas de source_columns()
+
+        Returns:
+            pd.DataFrame: Mesmo índice que df; colunas features + descriptors (float64)
+        """
+        built = FeatureBuilder("clustering").fit_transform(df[self.source_columns()])
+        return built[self.features + self.descriptors].astype("float64")
+
+    def preprocessor(self):
+        """
+        ColumnTransformer das variáveis do ajuste, por ajustar
+
+        Uma transformação por coluna, pela ordem de features, para a saída ter as colunas
+        por essa ordem (sem funções anónimas, para o pipeline se poder gravar com joblib).
+
+        Returns:
+            ColumnTransformer: Devolve um DataFrame (set_output pandas) com as colunas pela
+                ordem de features
+        """
+        def steps(log):
+            chain = [("log1p", FunctionTransformer(np.log1p, feature_names_out="one-to-one"))] if log else []
+            return Pipeline(chain + [
+                ("clip", QuantileClipper()),
+                ("impute", SimpleImputer(strategy="median")),   # sem add_indicator
+                ("scale", StandardScaler()),
+            ])
+
+        return ColumnTransformer(
+            [(column, steps(log=column in self.log_features), [column])
+             for column in self.features],
+            remainder="drop",
+            verbose_feature_names_out=False,
+        ).set_output(transform="pandas")
+
+    def pipeline(self):
+        """
+        FeatureBuilder + pré-processamento, por ajustar
+
+        Pode receber um modelo no fim (ex.: Pipeline(profiles.pipeline().steps +
+        [("model", KMeans(...))])) para guardar tudo junto no deployment.
+
+        Returns:
+            Pipeline
+        """
+        return Pipeline([("features", FeatureBuilder("clustering")),
+                         ("pre", self.preprocessor())])

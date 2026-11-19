@@ -13,7 +13,8 @@ from sklearn.cluster import KMeans
 from sklearn.datasets import make_blobs
 from sklearn.metrics import silhouette_score
 
-from lending.clustering import (ClusterEvaluator, dunn_index, euclidean_distances,
+from lending.clustering import (PROFILE_DESCRIPTORS, PROFILE_FEATURES, BorrowerProfiles,
+                                ClusterEvaluator, dunn_index, euclidean_distances,
                                 within_cluster_ss)
 
 
@@ -206,3 +207,108 @@ def test_stability_rejects_bad_inputs(blobs):
         ClusterEvaluator.stability([labels])
     with pytest.raises(ValueError, match="tamanhos diferentes"):
         ClusterEvaluator.stability([labels, labels[:10]])
+
+
+# ---------------------------------------------------------------------------------------
+# Perfis dos mutuários (BorrowerProfiles)
+# ---------------------------------------------------------------------------------------
+
+@pytest.fixture
+def loans():
+    """Empréstimos sintéticos com as colunas de origem do clustering, com alguns em falta."""
+    rng = np.random.default_rng(0)
+    n = 2_000
+    issue = pd.to_datetime("2012-01-01") + pd.to_timedelta(rng.integers(0, 1_000, n), unit="D")
+    issue = issue.to_period("M").to_timestamp()
+    earliest = (issue - pd.to_timedelta(rng.integers(400, 12_000, n), unit="D")).to_period("M").to_timestamp()
+    df = pd.DataFrame({
+        "fico_range_low": rng.choice(np.arange(660, 850, 5), n).astype(float),
+        "dti": rng.uniform(0, 40, n),
+        "revol_util": rng.uniform(0, 100, n),
+        "annual_inc": np.exp(rng.normal(11, 0.6, n)),
+        "loan_amnt": rng.uniform(1_000, 35_000, n),
+        "revol_bal": rng.exponential(15_000, n),
+        "open_acc": rng.integers(1, 20, n).astype(float),
+        "total_acc": rng.integers(20, 60, n).astype(float),
+        "issue_d": issue,
+        "earliest_cr_line": earliest,
+        "delinq_2yrs": rng.poisson(0.3, n).astype(float),
+        "mths_since_last_delinq": np.where(rng.random(n) < 0.5, np.nan, rng.integers(1, 100, n)),
+        "pub_rec": rng.poisson(0.1, n).astype(float),
+        "int_rate": rng.uniform(5, 25, n),   # coluna que não pode entrar
+    })
+    df.loc[:9, "revol_util"] = np.nan
+    df.loc[10:12, "annual_inc"] = np.nan
+    return df
+
+
+def test_profiles_default_variables():
+    profiles = BorrowerProfiles()
+    assert profiles.features == PROFILE_FEATURES
+    assert len(profiles.features) == 8
+    assert "credit_history_years" in profiles.features
+    assert profiles.log_features == ["annual_inc"]
+
+
+def test_profile_pipeline_gives_standardized_columns_without_missing(loans):
+    profiles = BorrowerProfiles()
+    X = profiles.pipeline().fit_transform(loans[profiles.source_columns()])
+    assert list(X.columns) == PROFILE_FEATURES   # sem indicadores de falta nem binárias
+    assert not X.isna().any().any()
+    np.testing.assert_allclose(X.mean(), 0, atol=1e-9)
+    np.testing.assert_allclose(X.std(ddof=0), 1, atol=1e-9)
+
+
+def test_profile_pipeline_logs_only_the_income(loans):
+    profiles = BorrowerProfiles()
+    X = profiles.pipeline().fit_transform(loans[profiles.source_columns()])
+    income = np.log1p(loans["annual_inc"])
+    income = income.clip(income.quantile(0.005), income.quantile(0.995))
+    income = income.fillna(income.median())
+    expected = (income - income.mean()) / income.std(ddof=0)
+    np.testing.assert_allclose(X["annual_inc"], expected, atol=1e-9)
+    # O DTI não leva log: a ordem dos valores e a forma da distribuição mantêm-se
+    dti = loans["dti"].clip(loans["dti"].quantile(0.005), loans["dti"].quantile(0.995))
+    np.testing.assert_allclose(X["dti"], (dti - dti.mean()) / dti.std(ddof=0), atol=1e-9)
+
+
+def test_profile_pipeline_ignores_other_columns(loans):
+    profiles = BorrowerProfiles()
+    X = profiles.pipeline().fit_transform(loans)   # com int_rate e tudo o resto
+    assert "int_rate" not in X.columns
+    assert list(X.columns) == PROFILE_FEATURES
+
+
+def test_profile_table_is_in_original_units(loans):
+    profiles = BorrowerProfiles()
+    table = profiles.table(loans)
+    assert list(table.columns) == PROFILE_FEATURES + PROFILE_DESCRIPTORS
+    np.testing.assert_allclose(table["fico_range_low"], loans["fico_range_low"])
+    years = ((loans["issue_d"].dt.year - loans["earliest_cr_line"].dt.year) * 12
+             + loans["issue_d"].dt.month - loans["earliest_cr_line"].dt.month) / 12
+    np.testing.assert_allclose(table["credit_history_years"], years)
+    assert set(table["has_public_record"].dropna().unique()) <= {0.0, 1.0}
+    assert table["revol_util"].isna().sum() == 10   # a tabela não imputa
+
+
+def test_profile_pipeline_can_be_pickled(loans):
+    import pickle
+    profiles = BorrowerProfiles()
+    fitted = profiles.pipeline().fit(loans[profiles.source_columns()])
+    restored = pickle.loads(pickle.dumps(fitted))
+    pd.testing.assert_frame_equal(restored.transform(loans), fitted.transform(loans))
+
+
+def test_profiles_reject_ineligible_variables():
+    # total_pymnt: pós-concessão (proibida); int_rate: ❌ no clustering (tabela da Fase 1)
+    with pytest.raises(ValueError, match="não elegíveis"):
+        BorrowerProfiles(features=["fico_range_low", "total_pymnt"], log_features=[])
+    with pytest.raises(ValueError, match="não elegíveis"):
+        BorrowerProfiles(features=["fico_range_low", "int_rate"], log_features=[])
+
+
+def test_profiles_reject_inconsistent_lists():
+    with pytest.raises(ValueError, match="log"):
+        BorrowerProfiles(features=["fico_range_low", "dti"], log_features=["annual_inc"])
+    with pytest.raises(ValueError, match="descritores"):
+        BorrowerProfiles(descriptors=["dti"])
