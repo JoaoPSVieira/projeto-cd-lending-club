@@ -33,7 +33,7 @@ em T0, a classificação em T4 e o clustering usa o perfil em T0.
 | `loan_to_income`        | João   | `loan_amnt / annual_inc`                      | T0      | ✅        | ✅            | ✅         |
 | `installment_to_income` | João   | `100 × installment / (annual_inc / 12)`       | T2      | ❌        | ✅            | ❌         |
 | `dti_with_loan`         | João   | `dti + 100 × installment / (annual_inc / 12)` | T2      | ❌        | ✅            | ❌         |
-| `credit_history_years`  | João   | `(issue_d − earliest_cr_line)` em meses / 12  | T4      | ❌        | ✅            | ❌         |
+| `credit_history_years`  | João   | `(issue_d − earliest_cr_line)` em meses / 12  | T4      | ❌        | ✅            | ✅         |
 | `issue_year`            | João   | ano de `issue_d`                              | T4      | ❌        | ⚠️ ✅         | ❌         |
 | `revol_to_income`       | Rodrigo | `revol_bal / annual_inc`                     | T0      | ✅        | ✅            | ✅         |
 | `open_acc_pct`          | Rodrigo | `100 × open_acc / total_acc`                 | T0      | ✅        | ✅            | ✅         |
@@ -82,8 +82,10 @@ em T0, a classificação em T4 e o clustering usa o perfil em T0.
   posterior).
 - **Valores em falta:** NaN se alguma das datas faltar ou se a diferença for negativa (data impossível); imputação +
   indicador.
-- **Elegibilidade:** T4 -> só classificação. Na regressão, `issue_d` é uma data futura em relação ao pedido; aí a
-  antiguidade vem de `mo_sin_old_rev_tl_op`, calculada pelo *bureau*.
+- **Elegibilidade:** T4 -> classificação e clustering. Na regressão, `issue_d` é uma data futura em relação ao pedido;
+  aí a antiguidade vem de `mo_sin_old_rev_tl_op`, calculada pelo *bureau*. No clustering de mutuários (acrescentado
+  na Parte 2) é uma das variáveis do perfil que o enunciado dá como exemplo; o clustering é descritivo e não tem
+  momento de previsão, por isso o `issue_d` serve só de referência para a idade do historial.
 
 ### 5. `issue_year` - ano de concessão (João)
 

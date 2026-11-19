@@ -223,11 +223,15 @@ FEATURES = [
         formula="(issue_d − earliest_cr_line) em meses / 12",
         rationale="Antiguidade do historial de crédito na data de concessão, como pede o "
                   "enunciado para o classificador. Um historial curto dá menos informação sobre "
-                  "o comportamento do mutuário.",
+                  "o comportamento do mutuário. No clustering de mutuários é uma das variáveis "
+                  "do perfil que o enunciado dá como exemplo (FICO, DTI, antiguidade do crédito, "
+                  "utilização); o clustering é descritivo e não tem momento de previsão.",
         missing="NaN se alguma das datas faltar ou se a diferença for negativa (data "
                 "impossível); imputação + indicador.",
         moment="T4",
-        tasks=("classification",),   # regressão: issue_d é uma data futura face ao pedido
+        # Regressão: issue_d é uma data futura face ao pedido. Clustering: acrescentado na
+        # Parte 2 (o issue_d passou a ⚠️ no clustering, só como referência desta feature)
+        tasks=("classification", "clustering"),
         compute=_credit_history_years,
         author="João",
     ),
