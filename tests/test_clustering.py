@@ -19,7 +19,8 @@ from sklearn.mixture import GaussianMixture
 
 from lending.clustering import (PROFILE_DESCRIPTORS, PROFILE_FEATURES, BorrowerProfiles,
                                 ClusterEvaluator, ClusterGrid, dunn_index, euclidean_distances,
-                                cached_csv, disjoint_halves, fit_predict, gmm_spec, kmeans_spec,
+                                cached_csv, disjoint_halves, fit_predict, gmm_spec, group_profiles,
+                                kmeans_spec,
                                 match_labels, matched_share, model_info, seed_stability,
                                 subset_stability, within_cluster_ss)
 from lending.experiment import ModelSpec
@@ -301,6 +302,25 @@ def test_cached_csv_computes_once(tmp_path):
     pd.testing.assert_frame_equal(first, second)
     cached_csv(path, compute, recompute=True)
     assert len(calls) == 2
+
+
+def test_group_profiles_hand_computed_example():
+    table = pd.DataFrame({"fico_range_low": [660.0, 700.0, 740.0, 800.0, 820.0],
+                          "ever_delinquent": [1.0, 0.0, 1.0, 0.0, 0.0]})
+    profile = group_profiles(table, ["a", "a", "a", "b", "b"])
+    assert list(profile.columns) == ["empréstimos", "% dos empréstimos", "fico_range_low",
+                                     "ever_delinquent"]
+    assert profile.loc["a", "empréstimos"] == 3
+    assert profile.loc["a", "% dos empréstimos"] == pytest.approx(60.0)
+    assert profile.loc["a", "fico_range_low"] == 700.0           # mediana
+    assert profile.loc["a", "ever_delinquent"] == pytest.approx(200 / 3)   # % com 1
+    assert profile.loc["b", "ever_delinquent"] == 0.0
+
+
+def test_group_profiles_rejects_missing_groups():
+    table = pd.DataFrame({"dti": [1.0, 2.0]})
+    with pytest.raises(ValueError, match="sem grupo"):
+        group_profiles(table, ["a", None])
 
 
 def test_stability_rejects_bad_inputs(blobs):

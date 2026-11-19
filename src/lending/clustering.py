@@ -397,6 +397,34 @@ def matched_share(reference, other):
     return float(np.mean(np.asarray(reference) == match_labels(reference, other)))
 
 
+def group_profiles(table, labels, descriptors=PROFILE_DESCRIPTORS):
+    """
+    Perfil de cada grupo em unidades originais (para interpretar os grupos)
+
+    Parameters:
+        table (pd.DataFrame): Variáveis em unidades originais (ex.: BorrowerProfiles.table)
+        labels (array-like): Grupo de cada linha de table (números ou nomes)
+        descriptors (list[str]): Colunas binárias (0/1): em vez da mediana, a % de 1
+
+    Returns:
+        pd.DataFrame: Uma linha por grupo, com "empréstimos", "% dos empréstimos", a mediana
+            de cada variável e, nas binárias, a percentagem de empréstimos com 1 (o nome da
+            coluna mantém-se)
+    """
+    labels = pd.Series(np.asarray(labels), index=table.index, name="grupo")
+    if labels.isna().any():
+        raise ValueError("Há linhas sem grupo.")
+    grouped = table.groupby(labels)
+    binary = [c for c in table.columns if c in descriptors]
+    profile = grouped[[c for c in table.columns if c not in descriptors]].median()
+    for column in binary:
+        profile[column] = 100 * grouped[column].mean()
+    sizes = labels.value_counts()
+    profile.insert(0, "% dos empréstimos", 100 * sizes / len(labels))
+    profile.insert(0, "empréstimos", sizes)
+    return profile
+
+
 # ================
 # = Estabilidade =
 # ================
