@@ -19,7 +19,8 @@ from sklearn.mixture import GaussianMixture
 
 from lending.clustering import (PROFILE_DESCRIPTORS, PROFILE_FEATURES, BorrowerProfiles,
                                 ClusterEvaluator, ClusterGrid, dunn_index, euclidean_distances,
-                                gmm_spec, kmeans_spec, model_info, within_cluster_ss)
+                                gmm_spec, kmeans_spec, match_labels, matched_share,
+                                model_info, within_cluster_ss)
 from lending.experiment import ModelSpec
 
 
@@ -204,6 +205,36 @@ def test_stability_has_one_row_per_pair(blobs):
     table = ClusterEvaluator.stability([labels] * 5)
     assert len(table) == 5 * 4 // 2
     assert isinstance(table, pd.DataFrame)
+
+
+def test_match_labels_undoes_a_renaming(blobs):
+    _, labels = blobs
+    renamed = np.array([2, 0, 1])[labels]
+    np.testing.assert_array_equal(match_labels(labels, renamed), labels)
+    assert matched_share(labels, renamed) == 1.0
+
+
+def test_match_labels_hand_computed_example():
+    reference = np.array([0, 0, 0, 1, 1, 1])
+    other = np.array([5, 5, 7, 7, 7, 5])     # 5 parece-se mais com 0, 7 com 1
+    np.testing.assert_array_equal(match_labels(reference, other), [0, 0, 1, 1, 1, 0])
+    assert matched_share(reference, other) == pytest.approx(4 / 6)
+
+
+def test_match_labels_with_more_groups_in_other():
+    reference = np.array([0, 0, 1, 1, 1, 1])
+    other = np.array([3, 3, 4, 4, 9, 9])      # 3 -> 0; 4 ou 9 -> 1; o que sobra -> 2
+    matched = match_labels(reference, other)
+    assert set(matched) == {0, 1, 2}
+    assert list(matched[:2]) == [0, 0]
+    assert matched_share(reference, other) == pytest.approx(4 / 6)
+
+
+def test_match_labels_rejects_bad_inputs():
+    with pytest.raises(ValueError, match="Tamanhos"):
+        match_labels([0, 1], [0])
+    with pytest.raises(ValueError, match="inteiros"):
+        match_labels(["a", "b"], [0, 1])
 
 
 def test_stability_rejects_bad_inputs(blobs):

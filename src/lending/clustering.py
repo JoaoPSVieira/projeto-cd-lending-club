@@ -58,6 +58,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy.optimize import linear_sum_assignment
 from sklearn.cluster import KMeans
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
@@ -343,6 +344,57 @@ class ClusterEvaluator:
         rows = [{"a": a, "b": b, "ari": adjusted_rand_score(labelings[a], labelings[b])}
                 for i, a in enumerate(names) for b in names[i + 1:]]
         return pd.DataFrame(rows)
+
+
+def match_labels(reference, other):
+    """
+    Renomeia os grupos de `other` para corresponderem aos de `reference`
+
+    Os nomes dos grupos são arbitrários: o "grupo 0" do k-means pode ser o "grupo 2" do
+    GMM. Para comparar dois agrupamentos dos mesmos pontos grupo a grupo, emparelha-se
+    cada grupo de `other` com um grupo de `reference` de forma a maximizar o número de
+    pontos em comum (problema de afetação, resolvido pelo algoritmo húngaro sobre a tabela
+    de contingência). Se `other` tiver mais grupos, os que sobram recebem nomes novos.
+
+    Parameters:
+        reference, other (array-like): Grupos dos mesmos pontos, pela mesma ordem, com
+            etiquetas inteiras (como as do k-means e do GMM)
+
+    Returns:
+        np.ndarray: `other` com os nomes dos grupos de `reference`
+    """
+    reference, other = np.asarray(reference), np.asarray(other)
+    if len(reference) != len(other):
+        raise ValueError(f"Tamanhos diferentes: {len(reference)} e {len(other)}.")
+    if not (np.issubdtype(reference.dtype, np.integer) and np.issubdtype(other.dtype, np.integer)):
+        raise ValueError("As etiquetas dos grupos têm de ser números inteiros.")
+    ref_groups, ref_idx = np.unique(reference, return_inverse=True)
+    oth_groups, oth_idx = np.unique(other, return_inverse=True)
+    counts = np.zeros((len(ref_groups), len(oth_groups)), dtype=np.int64)
+    np.add.at(counts, (ref_idx, oth_idx), 1)
+
+    rows, cols = linear_sum_assignment(-counts)   # maximizar = minimizar o simétrico
+    mapping = {oth_groups[c]: ref_groups[r] for r, c in zip(rows, cols)}
+    # Grupos de `other` sem par (quando tem mais grupos): nomes novos, a seguir aos existentes
+    next_label = int(ref_groups.max()) + 1
+    for group in oth_groups:
+        if group not in mapping:
+            mapping[group] = next_label
+            next_label += 1
+    return np.array([mapping[g] for g in oth_groups], dtype=np.int64)[oth_idx]
+
+
+def matched_share(reference, other):
+    """
+    Fração dos pontos que ficam no grupo correspondente depois de emparelhar os grupos
+
+    Complementa o ARI com uma leitura direta: 0,75 = três em cada quatro empréstimos estão
+    no "mesmo" grupo nos dois agrupamentos.
+
+    Returns:
+        float: Entre 0 e 1
+    """
+    return float(np.mean(np.asarray(reference) == match_labels(reference, other)))
 
 
 # ====================
