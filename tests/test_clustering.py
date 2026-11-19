@@ -19,7 +19,7 @@ from sklearn.mixture import GaussianMixture
 
 from lending.clustering import (PROFILE_DESCRIPTORS, PROFILE_FEATURES, BorrowerProfiles,
                                 ClusterEvaluator, ClusterGrid, dunn_index, euclidean_distances,
-                                kmeans_spec, within_cluster_ss)
+                                gmm_spec, kmeans_spec, model_info, within_cluster_ss)
 from lending.experiment import ModelSpec
 
 
@@ -404,8 +404,40 @@ def test_grid_fits_on_a_sample_but_labels_every_point(grid, blobs):
     table = grid.run(X, [spec])
     row = table.iloc[0]
     assert row["n_fit"] == 200 and row["n_points"] == len(X)
-    assert {"bic", "aic", "converged"} <= set(table.columns)
+    assert {"bic", "aic", "converged", "mean_max_proba"} <= set(table.columns)
     assert len(grid.labels(row["model"], row["config_id"])) == len(X)
+
+
+def test_gmm_spec_default_grid():
+    spec = gmm_spec()
+    configs = [params for _, params in spec.configs()]
+    assert len(configs) == 9 * 2
+    assert {p["covariance_type"] for p in configs} == {"full", "diag"}
+    assert sorted({p["n_components"] for p in configs}) == list(range(2, 11))
+    model = spec.make({"n_components": 3, "covariance_type": "diag"})
+    assert model.n_init == 3 and model.random_state == 42
+    assert spec.max_train_rows is None
+
+
+def test_model_info_of_gmm_and_kmeans(blobs):
+    X, _ = blobs
+    gmm = GaussianMixture(3, random_state=0).fit(X)
+    info = model_info(gmm, X)
+    assert info["bic"] == pytest.approx(gmm.bic(X))
+    assert info["converged"] is True
+    # Blobs bem separados: cada ponto pertence claramente a um grupo
+    assert 0.95 < info["mean_max_proba"] <= 1.0
+    km_info = model_info(KMeans(3, n_init=3, random_state=0).fit(X), X)
+    assert set(km_info) == {"n_iter"}
+
+
+def test_gmm_bic_prefers_the_true_number_of_groups(grid, blobs):
+    X, _ = blobs
+    spec = ModelSpec("GMM", partial(GaussianMixture, random_state=0),
+                     {"n_components": [2, 3, 4, 5], "covariance_type": ["full"]})
+    table = grid.run(X, [spec])
+    best = table.loc[table["bic"].idxmin(), "params"]
+    assert json.loads(best)["n_components"] == 3
 
 
 def test_grid_labels_must_exist(grid):

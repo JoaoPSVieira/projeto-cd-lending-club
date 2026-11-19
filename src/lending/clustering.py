@@ -62,6 +62,7 @@ from sklearn.cluster import KMeans
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import adjusted_rand_score, davies_bouldin_score, silhouette_score
+from sklearn.mixture import GaussianMixture
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer, StandardScaler
 
@@ -493,13 +494,43 @@ def kmeans_spec(k_values=K_VALUES):
     return ModelSpec("k-means", factory, {"n_clusters": list(k_values)})
 
 
+def gmm_spec(k_values=K_VALUES, covariance_types=("full", "diag"), max_train_rows=None):
+    """
+    Grelha da mistura de gaussianas (GMM): número de componentes x tipo de covariância
+
+    - full: cada grupo tem a sua matriz de covariância completa (elipses com qualquer
+      orientação: as variáveis podem estar correlacionadas dentro do grupo).
+      Parâmetros por grupo com d = 8 variáveis: 8 médias + 36 covariâncias.
+    - diag: só as variâncias (elipses alinhadas com os eixos): 8 médias + 8 variâncias.
+    O EM começa nos centros de um k-means (init_params="kmeans", o padrão) e, como o
+    k-means, só garante um ótimo local: n_init=3 corre 3 inícios e fica o de maior
+    verosimilhança.
+
+    Parameters:
+        max_train_rows (int | None): Ajustar numa amostra deste tamanho (o plano previa
+            100 000 se o tempo apertasse; com os 466 124 o maior ajuste demora ~35 s)
+
+    Returns:
+        ModelSpec
+    """
+    factory = partial(GaussianMixture, n_init=3, random_state=config.RANDOM_SEED)
+    grid = {"n_components": list(k_values), "covariance_type": list(covariance_types)}
+    return ModelSpec("GMM", factory, grid, max_train_rows=max_train_rows)
+
+
 def model_info(model, X_fit):
     """
     Informação própria de cada algoritmo, depois do ajuste
 
     Returns:
-        dict: n_iter (iterações até convergir), converged (GMM), bic e aic (GMM: medidas
-            de verosimilhança penalizada, calculadas nos dados do ajuste)
+        dict:
+            n_iter: iterações até convergir (k-means e GMM)
+            converged: se o EM convergiu antes do limite de iterações (GMM)
+            bic, aic: verosimilhança penalizada pelo número de parâmetros, nos dados do
+                ajuste (GMM); mais baixo = melhor
+            mean_max_proba: média, nos dados do ajuste, da probabilidade do grupo atribuído
+                (GMM). 1 = cada ponto pertence claramente a um grupo; perto de 1/k = os
+                grupos sobrepõem-se e a atribuição é quase ao acaso
     """
     info = {}
     if hasattr(model, "n_iter_"):
@@ -509,6 +540,8 @@ def model_info(model, X_fit):
     if hasattr(model, "bic"):
         info["bic"] = float(model.bic(X_fit))
         info["aic"] = float(model.aic(X_fit))
+    if hasattr(model, "predict_proba"):
+        info["mean_max_proba"] = float(model.predict_proba(X_fit).max(axis=1).mean())
     return info
 
 
