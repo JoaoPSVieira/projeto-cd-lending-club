@@ -23,6 +23,7 @@ Notas:
       logística e do kNN (drop_features), fica nas árvores (secção 3). Só existe na
       classificação.
     - A MLP só importa o TensorFlow quando é criada, para o resto funcionar sem ele.
+    - Modelo final da classificação: final_classification_spec() (04c, secções 7, 10 e 11).
 """
 
 from sklearn.dummy import DummyClassifier, DummyRegressor
@@ -107,8 +108,8 @@ def classification_specs(include_mlp=True):
         ModelSpec("Classe maioritária", lambda: DummyClassifier(strategy="most_frequent"),
                   preprocess=False),
         ModelSpec("Taxa do grau", GradeRateBaseline, preprocess=False),
-        ModelSpec("kNN", lambda: KNNClassifier(search_k=max(KNN_K)), KNN_GRID,
-                  drop_features=COLLINEAR_DROP),
+        ModelSpec("kNN", lambda: KNNClassifier(search_k=max(KNN_K), class_weight="balanced"),
+                  KNN_GRID, drop_features=COLLINEAR_DROP),
         ModelSpec("Regressão logística",
                   lambda: LogisticRegression(class_weight="balanced", max_iter=2000),
                   {"C": REGULARIZATION}, drop_features=COLLINEAR_DROP),
@@ -123,3 +124,27 @@ def classification_specs(include_mlp=True):
     if include_mlp:
         specs.append(ModelSpec("MLP", _mlp_classifier, MLP_GRID))
     return specs
+
+
+# Modelo final da classificação: sem dti_with_loan (colinear) nem issue_year (04c, secção 10)
+FINAL_CLASSIFICATION_DROP = COLLINEAR_DROP + ("issue_year",)
+
+
+def final_classification_spec():
+    """
+    Modelo final da classificação, para o teste de 2015 e o deployment
+
+    A regressão logística L2 escolhida na validação cruzada (04c, secção 7): C = 0,1 e classes
+    ponderadas. Empata com a MLP no bootstrap emparelhado e é a mais simples e interpretável.
+    Sem o issue_year (secção 10): o ano é a data de financiamento, não uma característica do
+    pedido, e sem ele o F1 macro é o mesmo e a AUC perde 0,001. O limiar escolhido nas
+    previsões fora do fold desta configuração está em
+    reports/results/classification_final_model.csv.
+
+    Returns:
+        ModelSpec: Uma só configuração. Treinar em todo o treino com
+            runner.refit(data, spec, cid=spec.configs()[0][0])
+    """
+    return ModelSpec("Regressão logística final",
+                     lambda: LogisticRegression(class_weight="balanced", max_iter=2000),
+                     {"C": [0.1]}, drop_features=FINAL_CLASSIFICATION_DROP)

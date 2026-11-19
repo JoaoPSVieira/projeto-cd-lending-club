@@ -10,7 +10,8 @@ from sklearn.base import clone
 from sklearn.metrics import roc_auc_score
 
 from lending.boosting import LGBMEarlyStoppingClassifier, LGBMEarlyStoppingRegressor, last_rows_cut
-from lending.model_catalog import classification_specs, regression_specs
+from lending.model_catalog import (REGULARIZATION, classification_specs, final_classification_spec,
+                                   regression_specs)
 
 
 def make_data(n=2_000, seed=0):
@@ -109,6 +110,24 @@ def test_collinear_feature_dropped_only_in_logistic():
     assert specs["Regressão logística"].drop_features == ("dti_with_loan",)
     assert specs["kNN"].drop_features == ("dti_with_loan",)
     assert specs["Árvore"].drop_features == ()
+
+
+def test_supervised_classifiers_weight_the_classes():
+    # A docstring do catálogo garante-o: todos os supervisionados ponderam as classes
+    for spec in classification_specs(include_mlp=False)[2:]:
+        weighting = spec.factory().get_params()["class_weight"]
+        assert weighting in ("balanced", "balanced_subsample"), spec.name
+
+
+def test_final_classification_spec():
+    # A logística escolhida na validação cruzada, sem dti_with_loan nem issue_year
+    spec = final_classification_spec()
+    configs = spec.configs()
+    assert [params for _, params in configs] == [{"C": 0.1}]
+    assert 0.1 in REGULARIZATION
+    assert set(spec.drop_features) == {"dti_with_loan", "issue_year"}
+    model = spec.make(configs[0][1])
+    assert model.C == 0.1 and model.get_params()["class_weight"] == "balanced"
 
 
 @pytest.mark.skipif(importlib.util.find_spec("keras") is None

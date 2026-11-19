@@ -1,0 +1,48 @@
+tipo,variável,colunas,1 DP,log-odds,OR,"IC 2,5%","IC 97,5%",efeito claro
+numérica (por 1 DP),montante (+ financiado + prestação),"loan_amnt, funded_amnt, installment",× 2.04,-0.02876235537515698,0.9716473438003991,0.8891008253192347,1.0620317855047436,não
+numérica (por 1 DP),annual_inc,annual_inc,× 1.76,-0.17749200097586698,0.8373676974333847,0.7696161288662887,0.9035555619574721,sim
+numérica (por 1 DP),revol_bal,revol_bal,× 7.20,-0.1295041870861859,0.8785309099239085,0.8372287173870305,0.9300255420135193,sim
+numérica (por 1 DP),em falta: annual_inc (+ 3 iguais),"missingindicator_annual_inc, missingindicator_loan_to_income, missingindicator_installment_to_income, missingindicator_revol_to_income",indicador 0/1,-0.0779737453489116,0.9249887114806222,0.8652202668018166,0.9897446013365949,sim
+numérica (por 1 DP),em falta: delinq_amnt (+ 9 iguais),"missingindicator_delinq_amnt, missingindicator_delinq_2yrs, missingindicator_inq_last_6mths, missingindicator_open_acc, missingindicator_pub_rec, missingindicator_total_acc, missingindicator_acc_now_delinq, missingindicator_credit_history_years, missingindicator_ever_delinquent, missingindicator_has_public_record",indicador 0/1,0.07287200229384085,1.0755928546852258,0.8490370844829904,1.1288398833333682,não
+numérica (por 1 DP),emp_length,emp_length,3.49,0.07244803099459873,1.075136930841311,1.032094347830965,1.1130841490970655,sim
+numérica (por 1 DP),int_rate,int_rate,3.27,0.21708644882662345,1.2424515059700572,1.0968828935312427,1.4006786789796324,sim
+numérica (por 1 DP),dti,dti,6.74,0.005169729995861771,1.0051831161075635,0.9674317194642191,1.049390545189974,não
+numérica (por 1 DP),delinq_2yrs,delinq_2yrs,0.46,0.06496271365339175,1.0671192346647345,1.0082845293279574,1.1212957716893186,sim
+numérica (por 1 DP),FICO (low e high),"fico_range_low, fico_range_high",36.6,-0.21636253418532578,0.8054432482251412,0.7245220929890025,0.8780849797718765,sim
+numérica (por 1 DP),inq_last_6mths,inq_last_6mths,1.45,0.24824570372472185,1.2817748303566845,1.2420852934153037,1.3340607700984273,sim
+numérica (por 1 DP),mths_since_last_delinq,mths_since_last_delinq,12.5,0.04993987831264722,1.051207894083778,1.0026321178997772,1.1019101750334344,sim
+numérica (por 1 DP),mths_since_last_record,mths_since_last_record,5.66,0.06261295465923089,1.0646147053177875,1.0022063963612684,1.1247239908247033,sim
+numérica (por 1 DP),open_acc,open_acc,4.42,-0.03750122708955508,0.9631932357957375,0.8861062915864948,1.0335511242862387,não
+numérica (por 1 DP),registos públicos (3 colunas),"pub_rec, has_public_record, missingindicator_mths_since_last_record",0.228,0.20274992377492057,1.2247661450528615,1.0916792388441647,1.3552263670001246,sim
+numérica (por 1 DP),revol_util,revol_util,28.5,0.13803016256679157,1.148010176685597,1.0856876349229077,1.2051690458879942,sim
+numérica (por 1 DP),total_acc,total_acc,11.4,0.0743067804292495,1.0771371994268335,0.9886557715210573,1.196104334311176,não
+numérica (por 1 DP),pub_rec_bankruptcies,pub_rec_bankruptcies,0.2,-0.13298479339474123,0.8754784050620669,0.7918416208223267,0.9779587159717393,sim
+numérica (por 1 DP),montante / rendimento (+ prestação / rendimento),"loan_to_income, installment_to_income",0.103,0.11029872213950569,1.116611577242812,1.023193533732292,1.2180102751728403,sim
+numérica (por 1 DP),credit_history_years,credit_history_years,6.82,0.020228305266502187,1.0204342839557277,0.9768630370868763,1.0701885377930427,não
+numérica (por 1 DP),revol_to_income,revol_to_income,0.2,0.14264037638561552,1.1533149677812136,1.0938810959499559,1.2053319967689555,sim
+numérica (por 1 DP),open_acc_pct,open_acc_pct,19.3,0.051357560010159856,1.0526992291449355,0.9858109740470712,1.1255937837701782,não
+numérica (por 1 DP),já teve atraso (+ 1 coluna),"ever_delinquent, missingindicator_mths_since_last_delinq",0.476,-0.084969203288499,0.9185405719948704,0.8681195925710893,0.9640955320485088,sim
+numérica (por 1 DP),em falta: emp_length,missingindicator_emp_length,indicador 0/1,0.10682284885828132,1.1127371143678002,1.078716626570767,1.1433384527691786,sim
+numérica (por 1 DP),em falta: revol_util,missingindicator_revol_util,indicador 0/1,0.009904701603694256,1.0099539155094397,0.9703870879705468,1.0441943977297465,não
+numérica (por 1 DP),em falta: collections_12_mths_ex_med (+ 1 iguais),"missingindicator_collections_12_mths_ex_med, missingindicator_chargeoff_within_12_mths",indicador 0/1,0.06497020142395434,1.0671272250386417,1.0178774880514974,1.12900939939862,sim
+numérica (por 1 DP),em falta: pub_rec_bankruptcies,missingindicator_pub_rec_bankruptcies,indicador 0/1,0.09856595733547761,1.1035871916645672,1.0609317188787568,1.138794089661851,sim
+numérica (por 1 DP),em falta: tax_liens,missingindicator_tax_liens,indicador 0/1,-0.12451539565935404,0.8829246680543248,0.8284236827539994,0.933278624061953,sim
+numérica (por 1 DP),em falta: open_acc_pct,missingindicator_open_acc_pct,indicador 0/1,-0.07419719551330636,0.9284885820049367,0.8956464341765688,1.0013759971229759,não
+categoria (contra a referência),purpose: car,contra debt_consolidation,,0.004121261824196837,1.004129765902206,0.7768678404841305,1.2070355942947373,não
+categoria (contra a referência),purpose: credit_card,contra debt_consolidation,,-0.30026203937440876,0.7406241225704043,0.638337280600222,0.8421393672474198,sim
+categoria (contra a referência),purpose: educational,contra debt_consolidation,,0.31094635133894755,1.3647160040358446,1.0459450651606812,1.7171635414069497,sim
+categoria (contra a referência),purpose: home_improvement,contra debt_consolidation,,0.19309736671094807,1.2130008936769086,1.0195619517380246,1.4048154794169792,sim
+categoria (contra a referência),purpose: house,contra debt_consolidation,,-0.011018143071462039,0.9890423343468346,0.7086927832246398,1.4139784445342924,não
+categoria (contra a referência),purpose: major_purchase,contra debt_consolidation,,-0.11120551783300797,0.8947548419554049,0.7371695369473305,1.0838805717164246,não
+categoria (contra a referência),purpose: medical,contra debt_consolidation,,0.3527504881152739,1.42297604969931,1.1143820133192515,1.709053674477689,sim
+categoria (contra a referência),purpose: moving,contra debt_consolidation,,0.42295610775520187,1.5264672944198803,1.2599964643144144,1.8634454712012476,sim
+categoria (contra a referência),purpose: other,contra debt_consolidation,,0.2645158787567572,1.3028001098740083,1.1531753296428902,1.4524799548181144,sim
+categoria (contra a referência),purpose: small_business,contra debt_consolidation,,0.9214938226525651,2.513041625905706,2.154227196962208,2.878579005965119,sim
+categoria (contra a referência),purpose: vacation,contra debt_consolidation,,0.26759829206273344,1.306822073760731,0.8862886422996523,1.7561049633632366,não
+categoria (contra a referência),purpose: wedding,contra debt_consolidation,,-0.14910048854749358,0.8614825414199312,0.646483141705629,1.057672801322418,não
+categoria (contra a referência),purpose: outras (raras),contra debt_consolidation,,0.5194646938474089,1.6811274909009408,1.1141343742632952,2.6756209751891102,sim
+categoria (contra a referência),home_ownership: MORTGAGE,contra RENT,,-0.029630830821095744,0.970803858266451,0.8941885518047523,1.0609855765179605,não
+categoria (contra a referência),home_ownership: OWN,contra RENT,,-0.12382451339375634,0.8835348758159307,0.7583480960468912,0.9967855573800252,sim
+categoria (contra a referência),home_ownership: outras (raras),contra RENT,,0.3183705211874849,1.3748855911048508,0.8613290178812743,1.9152395682593204,não
+categoria (contra a referência),verification_status: Source Verified,contra Not Verified,,-0.07323305946120393,0.9293842030016815,0.8599278317346364,1.0233663268511546,não
+categoria (contra a referência),verification_status: Verified,contra Not Verified,,-0.002651820452299898,0.9973516925176145,0.9267813933769934,1.0960393145956335,não

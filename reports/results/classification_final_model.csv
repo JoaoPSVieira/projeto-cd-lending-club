@@ -1,0 +1,2 @@
+modelo,parâmetros,pesos das classes,colunas tiradas,treino,empréstimos de treino,colunas do modelo,limiar,F1 macro (validação cruzada),AUC (validação cruzada),recall Default (validação cruzada),Default previstos por fold (%)
+Regressão logística final,"{""C"": 0.1}",balanced,"dti_with_loan, issue_year","empréstimos de 36 meses emitidos em 2007-2011, desfecho em T4",31522,111,0.57,0.570 ± 0.008,0.668 ± 0.020,0.257 ± 0.015,13.7 / 12.6 / 12.0
