@@ -75,8 +75,8 @@ grupos com a taxa de juro e a taxa de *default*, calculadas depois do ajuste.
 | Algoritmo | Grelha | Ajuste | Tempo por configuração |
 |---|---|---|---|
 | k-means (`kmeans_spec`) | k de 2 a 10; `n_init=10`, semente 42 | 466 124 empréstimos | 1–6 s |
-| GMM (`gmm_spec`) | k de 2 a 10 x covariância `full`/`diag`; `n_init=3` | 466 124 empréstimos | 3–96 s |
-| DBSCAN (`dbscan_scan`) | `eps` de 0,8 a 2,0 x `min_samples` 8, 16, 32 | amostra de 20 000 | 1–7 s |
+| GMM (`gmm_spec`) | k de 2 a 10 x covariância `full`/`diag`; `n_init=3` | 466 124 empréstimos | 3–97 s |
+| DBSCAN (`dbscan_scan`) | `eps` de 0,8 a 2,0 x `min_samples` 8, 16, 32 | amostra de 20 000 | 1–8 s |
 
 - **Medidas internas** (`ClusterEvaluator`), sempre nos mesmos pontos:
   - WSS e Davies-Bouldin em todos os empréstimos;
@@ -251,14 +251,17 @@ Por isso não dependem da numeração do k-means.
 ## 11. Como correr
 
 - **Antes:** `01_preprocessamento.ipynb` (gera `aceites_dev.pkl`).
-- **Com os resultados guardados** (`RECALCULAR = False`), o notebook corre em cerca de 40 s.
-- **Do zero** (`RECALCULAR = True`), demora cerca de 25 minutos:
+- **Como está no repositório** (`RECALCULAR = True`), o notebook calcula tudo do zero em cerca
+  de 25 minutos:
   - grelha do GMM: ~10 min;
   - estabilidade: ~10 min;
   - DBSCAN: ~2 min.
 
-  A execução do zero dá os mesmos grupos e as mesmas medidas do que a execução por secções;
-  só mudam os tempos.
+  As saídas gravadas no notebook e os CSVs vêm dessa execução completa.
+- **Durante o desenvolvimento** usou-se `RECALCULAR = False`: as configurações e as análises já
+  guardadas são lidas em vez de recalculadas, e o notebook corre em cerca de 40 s. No fim do
+  bloco voltou-se a `True` e correu-se tudo do zero. Essa execução deu os mesmos grupos e as
+  mesmas medidas da execução por secções; só mudaram os tempos.
 - **Alterações a ficheiros da Parte 1 neste bloco:**
   - `docs/01_formulacao_problema/elegibilidade_colunas.md` (`issue_d` ⚠️ no clustering);
   - `src/lending/feature_engineering.py` (`credit_history_years` também no clustering);
