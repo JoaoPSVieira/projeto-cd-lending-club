@@ -54,7 +54,7 @@ As decisões foram tomadas a partir do enunciado e do dicionário de dados
 | `funded_amnt_inv` | Parte financiada por investidores | T3 | ❌ | ❌ | ❌ | Posterior ao pricing. Descreve a repartição do financiamento entre investidores e não o risco do mutuário; o dicionário ("*at that point in time*") não garante que seja o valor na concessão - excluído por precaução |
 | `initial_list_status` | Modo de listagem inicial (W/F) | T3 | ❌ | ✅ | ❌ | Decidido na listagem, depois do pricing. Na concessão já é conhecido e "*initial*" garante que é o valor original |
 | `disbursement_method` | Modo de desembolso | T4 | ❌ | ❌ | ❌ | Momento de definição incerto (pode ser escolhido ou alterado até ao desembolso). O enunciado manda excluir em caso de dúvida |
-| `issue_d` | Mês de financiamento | T4 | ❌ | ⚠️ | ❌ | Mês de financiamento, não data do pedido: futuro em relação a T0. Usado na **divisão temporal** de todas as tarefas. Na classificação só como feature temporal justificada (ex: ano de concessão) e como referência para a antiguidade do crédito |
+| `issue_d` | Mês de financiamento | T4 | ❌ | ⚠️ | ⚠️ | Mês de financiamento, não data do pedido: futuro em relação a T0. Usado na **divisão temporal** de todas as tarefas. Na classificação só como feature temporal justificada (ex: ano de concessão) e como referência para a antiguidade do crédito. No clustering de mutuários só como referência para a antiguidade do crédito (exemplo do enunciado); nunca entra sozinho no ajuste |
 
 ---
 
@@ -274,12 +274,12 @@ removidas - por exemplo `has_recovery` ou uma contagem de campos `hardship_*` n�
 |---|---|---|---|---|---|
 | Regressão | 92 | 4 | 54 | 1 | 151 |
 | Classificação | 102 | 3 | 45 | 1 | 151 |
-| Clustering (mutuários) | 74 | 1 | 76 | - | 151 |
+| Clustering (mutuários) | 74 | 2 | 75 | - | 151 |
 
 **Condicionais:**
 - Regressão: `zip_code`, `addr_state` (*fairness*), `earliest_cr_line`, `sec_app_earliest_cr_line` (antiguidade sem `issue_d`).
 - Classificação: `zip_code`, `addr_state` (*fairness*), `issue_d` (feature temporal justificada).
-- Clustering: `addr_state` (chave de agregação dos estados).
+- Clustering: `addr_state` (chave de agregação dos estados), `issue_d` (só como referência da antiguidade do crédito; revisto na Parte 2).
 
 ## Regras transversais
 
