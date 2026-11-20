@@ -77,6 +77,7 @@ Parte 2 (modelação):
 
 9. `04a_knn.ipynb`: kNN de raiz (estrutura de dados e verificação)
 10. `04c_classificacao.ipynb`: classificação: os 8 modelos na validação cruzada, comparação, interpretação e modelo final (cerca de 25 minutos; ver `docs/04_modelos/classificacao.md`)
+11. `04d_clustering.ipynb`: clustering de mutuários: k-means, GMM e DBSCAN, escolha de k, estabilidade e risco dos quatro grupos (cerca de 40 segundos com os resultados guardados, 25 minutos do zero; ver `docs/04_modelos/clustering.md`)
 
 ## Entrega da Parte 1
 
