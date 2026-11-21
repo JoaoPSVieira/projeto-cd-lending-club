@@ -1,0 +1,272 @@
+{
+  "task": "classification",
+  "tag": "modelos-congelados",
+  "final_model": "Regressão logística final",
+  "models": [
+    {
+      "model": "MLP",
+      "config_id": "623a4a3a1d",
+      "params": {
+        "hidden_layers": [
+          256,
+          128,
+          64
+        ],
+        "learning_rate": 0.001
+      },
+      "preprocess": true,
+      "max_train_rows": null,
+      "drop_features": [],
+      "threshold": 0.56,
+      "cv": {
+        "f1_macro": "0.573 ± 0.008",
+        "f1_micro": "0.819 ± 0.023",
+        "precision_macro": "0.571 ± 0.007",
+        "precision_micro": "0.819 ± 0.023",
+        "recall_macro": "0.575 ± 0.009",
+        "recall_micro": "0.819 ± 0.023",
+        "accuracy": "0.819 ± 0.023",
+        "recall_default": "0.257 ± 0.005",
+        "auc": "0.666 ± 0.025"
+      },
+      "file": "classification/mlp.joblib",
+      "sha256": "a4ea4697f277b7719788b1e46eafa58302e04e4168f1c5b52947f8e508eb3fd5",
+      "size_mb": 0.7,
+      "fit_seconds": 15.7,
+      "n_train": 31522
+    },
+    {
+      "model": "Regressão logística",
+      "config_id": "5f32d1c1c5",
+      "params": {
+        "C": 0.1
+      },
+      "preprocess": true,
+      "max_train_rows": null,
+      "drop_features": [
+        "dti_with_loan"
+      ],
+      "threshold": 0.56,
+      "cv": {
+        "f1_macro": "0.570 ± 0.010",
+        "f1_micro": "0.814 ± 0.028",
+        "precision_macro": "0.567 ± 0.009",
+        "precision_micro": "0.814 ± 0.028",
+        "recall_macro": "0.573 ± 0.012",
+        "recall_micro": "0.814 ± 0.028",
+        "accuracy": "0.814 ± 0.028",
+        "recall_default": "0.259 ± 0.020",
+        "auc": "0.669 ± 0.021"
+      },
+      "file": "classification/regress_o_log_stica.joblib",
+      "sha256": "2c46627c3609cc63b5b28d75a03ca0f6b7c3106ee429290825e484f233b0ad69",
+      "size_mb": 0.0,
+      "fit_seconds": 1.4,
+      "n_train": 31522
+    },
+    {
+      "model": "Random Forest",
+      "config_id": "146de68547",
+      "params": {
+        "max_features": 0.3,
+        "min_samples_leaf": 50
+      },
+      "preprocess": true,
+      "max_train_rows": null,
+      "drop_features": [],
+      "threshold": 0.52,
+      "cv": {
+        "f1_macro": "0.564 ± 0.021",
+        "f1_micro": "0.796 ± 0.067",
+        "precision_macro": "0.564 ± 0.019",
+        "precision_micro": "0.796 ± 0.067",
+        "recall_macro": "0.573 ± 0.014",
+        "recall_micro": "0.796 ± 0.067",
+        "accuracy": "0.796 ± 0.067",
+        "recall_default": "0.283 ± 0.073",
+        "auc": "0.662 ± 0.036"
+      },
+      "file": "classification/random_forest.joblib",
+      "sha256": "4e572e6b603c8105ddd210e5a84721ae217636aa7457ca31883c477fe9aec9e1",
+      "size_mb": 2.7,
+      "fit_seconds": 3.5,
+      "n_train": 31522
+    },
+    {
+      "model": "LightGBM",
+      "config_id": "c5620f8314",
+      "params": {
+        "learning_rate": 0.1,
+        "num_leaves": 63
+      },
+      "preprocess": true,
+      "max_train_rows": null,
+      "drop_features": [],
+      "threshold": 0.52,
+      "cv": {
+        "f1_macro": "0.561 ± 0.008",
+        "f1_micro": "0.801 ± 0.051",
+        "precision_macro": "0.560 ± 0.009",
+        "precision_micro": "0.801 ± 0.051",
+        "recall_macro": "0.568 ± 0.004",
+        "recall_micro": "0.801 ± 0.051",
+        "accuracy": "0.801 ± 0.051",
+        "recall_default": "0.265 ± 0.059",
+        "auc": "0.644 ± 0.031"
+      },
+      "file": "classification/lightgbm.joblib",
+      "sha256": "627a89b362e383363b7298f7f41ceb958cd6290a071e84931b893ccc69eff8d9",
+      "size_mb": 0.2,
+      "fit_seconds": 2.4,
+      "n_train": 31522
+    },
+    {
+      "model": "kNN",
+      "config_id": "2389ec1fa4",
+      "params": {
+        "n_neighbors": 101,
+        "weights": "distance"
+      },
+      "preprocess": true,
+      "max_train_rows": null,
+      "drop_features": [
+        "dti_with_loan"
+      ],
+      "threshold": 0.52,
+      "cv": {
+        "f1_macro": "0.555 ± 0.011",
+        "f1_micro": "0.792 ± 0.026",
+        "precision_macro": "0.551 ± 0.009",
+        "precision_micro": "0.792 ± 0.026",
+        "recall_macro": "0.564 ± 0.013",
+        "recall_micro": "0.792 ± 0.026",
+        "accuracy": "0.792 ± 0.026",
+        "recall_default": "0.266 ± 0.010",
+        "auc": "0.642 ± 0.028"
+      },
+      "file": "classification/knn.joblib",
+      "sha256": "b31ec4007027b817651bbbb66d94bb0dc4ff55b7e9e46897f7e7f9f7b89aac55",
+      "size_mb": 2.5,
+      "fit_seconds": 1.2,
+      "n_train": 31522
+    },
+    {
+      "model": "Árvore",
+      "config_id": "58b087dc20",
+      "params": {
+        "max_depth": 6,
+        "min_samples_leaf": 50
+      },
+      "preprocess": true,
+      "max_train_rows": null,
+      "drop_features": [],
+      "threshold": 0.62,
+      "cv": {
+        "f1_macro": "0.541 ± 0.011",
+        "f1_micro": "0.816 ± 0.051",
+        "precision_macro": "0.546 ± 0.004",
+        "precision_micro": "0.816 ± 0.051",
+        "recall_macro": "0.542 ± 0.018",
+        "recall_micro": "0.816 ± 0.051",
+        "accuracy": "0.816 ± 0.051",
+        "recall_default": "0.187 ± 0.094",
+        "auc": "0.613 ± 0.007"
+      },
+      "file": "classification/rvore.joblib",
+      "sha256": "383423250f39d8e272cadef4bc43b98b36e07ceab25d491544f2a5755bcb2038",
+      "size_mb": 0.0,
+      "fit_seconds": 1.5,
+      "n_train": 31522
+    },
+    {
+      "model": "Taxa do grau",
+      "config_id": "2b67ef4d5f",
+      "params": {},
+      "preprocess": false,
+      "max_train_rows": null,
+      "drop_features": [],
+      "threshold": 0.21,
+      "cv": {
+        "f1_macro": "0.513 ± 0.045",
+        "f1_micro": "0.733 ± 0.174",
+        "precision_macro": "0.550 ± 0.009",
+        "precision_micro": "0.733 ± 0.174",
+        "recall_macro": "0.561 ± 0.041",
+        "recall_micro": "0.733 ± 0.174",
+        "accuracy": "0.733 ± 0.174",
+        "recall_default": "0.344 ± 0.298",
+        "auc": "0.630 ± 0.020"
+      },
+      "file": "classification/taxa_do_grau.joblib",
+      "sha256": "e578f7a2f2c5b37c6a7395121ebfe4b827b2e1e806f344f8d1f0a9d5cdbfcf41",
+      "size_mb": 0.0,
+      "fit_seconds": 0.0,
+      "n_train": 31522
+    },
+    {
+      "model": "Classe maioritária",
+      "config_id": "781732d1d9",
+      "params": {},
+      "preprocess": false,
+      "max_train_rows": null,
+      "drop_features": [],
+      "threshold": 0.05,
+      "cv": {
+        "f1_macro": "0.469 ± 0.005",
+        "f1_micro": "0.882 ± 0.017",
+        "precision_macro": "0.441 ± 0.008",
+        "precision_micro": "0.882 ± 0.017",
+        "recall_macro": "0.500 ± 0.000",
+        "recall_micro": "0.882 ± 0.017",
+        "accuracy": "0.882 ± 0.017",
+        "recall_default": "0.000 ± 0.000",
+        "auc": "0.500 ± 0.000"
+      },
+      "file": "classification/classe_maiorit_ria.joblib",
+      "sha256": "0e775a21291ed19b383c07f945c220f2cc786f5e20c8d8cc422fb63ea774da1c",
+      "size_mb": 0.0,
+      "fit_seconds": 0.0,
+      "n_train": 31522
+    },
+    {
+      "model": "Regressão logística final",
+      "config_id": "7ffecf631c",
+      "params": {
+        "C": 0.1
+      },
+      "preprocess": true,
+      "max_train_rows": null,
+      "drop_features": [
+        "dti_with_loan",
+        "issue_year"
+      ],
+      "threshold": 0.57,
+      "cv": {
+        "f1_macro": "0.570 ± 0.008",
+        "recall_default": "0.257 ± 0.015",
+        "auc": "0.668 ± 0.020"
+      },
+      "file": "classification/regress_o_log_stica_final.joblib",
+      "sha256": "64e18f9bacb0506daa5035ea3387f07ce6c6e3c3a582bd99f694f74eeb2c1cb3",
+      "size_mb": 0.0,
+      "fit_seconds": 1.4,
+      "n_train": 31522
+    }
+  ],
+  "train": {
+    "rows": 31522,
+    "first": "2007-06-01",
+    "last": "2011-12-01"
+  },
+  "frozen_at": "2026-11-21T20:37:10",
+  "git_commit": "1b4a196",
+  "uncommitted_code_changes": false,
+  "versions": {
+    "numpy": "2.5.3",
+    "pandas": "3.0.6",
+    "scikit-learn": "1.9.1",
+    "lightgbm": "4.7.0",
+    "tensorflow": "2.21.0",
+    "keras": "3.15.1"
+  }
+}
