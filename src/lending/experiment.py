@@ -42,6 +42,7 @@ Exemplo:
     runner.summary()                                  # todas as configurações
     runner.comparison_table()                         # melhor configuração de cada modelo
     final = runner.refit(data, spec)                  # melhor configuração, todo o treino
+    pipe, X_va, y_va = runner.fold_pipeline(data, spec, fold=-1)   # modelo do último fold
 """
 
 import hashlib
@@ -208,7 +209,8 @@ class CrossValidationRunner:
 
     Methods:
         prepare(data), folds(data), run(data, specs), results(), oof(model, config_id),
-        summary(), best(), comparison_table(), threshold(model, config_id), refit(data, spec)
+        summary(), best(), comparison_table(), threshold(model, config_id), refit(data, spec),
+        fold_pipeline(data, spec, fold)
     """
 
     def __init__(self, task, results_dir=RESULTS_DIR, oof_dir=OOF_DIR, columns=None,
@@ -478,6 +480,37 @@ class CrossValidationRunner:
 
     # ------------------------------------------------------------------ modelo final
 
+    def _resolve_config(self, spec, cid):
+        """(config_id, parâmetros): os pedidos, ou os da melhor configuração do modelo."""
+        configs = dict(spec.configs())
+        if cid is None:
+            best = self.best()
+            chosen = (best.loc[best["model"] == spec.name, "config_id"] if not best.empty
+                      else pd.Series(dtype=str))
+            if chosen.empty:
+                raise ValueError(f"Não há uma configuração completa de {spec.name!r} nos resultados.")
+            cid = chosen.iloc[0]
+        if cid not in configs:
+            raise KeyError(f"A configuração {cid!r} não pertence à grelha de {spec.name!r}.")
+        return cid, configs[cid]
+
+    def _fit_pipeline(self, X, y, spec, params):
+        """Pré-processamento + colunas tiradas + amostra + modelo, com as regras da validação."""
+        steps = []
+        A = X
+        if spec.preprocess:
+            prep = self.make_preprocessor()
+            A = prep.fit_transform(X, y)
+            steps += prep.steps if isinstance(prep, Pipeline) else [("prep", prep)]
+        if spec.drop_features:
+            dropper = ColumnDropper(spec.drop_features).fit(A)
+            A = dropper.transform(A)
+            steps.append(("drop", dropper))
+        A_fit, y_fit = self._sample(spec, A, y)
+        model = spec.make(params).fit(A_fit, y_fit)
+        steps.append(("model", model))
+        return Pipeline(steps)
+
     def refit(self, data, spec, cid=None):
         """
         Treina uma configuração em todo o treino da tarefa (para a avaliação final no teste)
@@ -494,30 +527,32 @@ class CrossValidationRunner:
             Pipeline: Pipeline já treinado (pré-processamento + modelo), pronto a prever
                 sobre as colunas originais (runner.columns)
         """
-        configs = dict(spec.configs())
-        if cid is None:
-            best = self.best()
-            chosen = (best.loc[best["model"] == spec.name, "config_id"] if not best.empty
-                      else pd.Series(dtype=str))
-            if chosen.empty:
-                raise ValueError(f"Não há uma configuração completa de {spec.name!r} nos resultados.")
-            cid = chosen.iloc[0]
-        if cid not in configs:
-            raise KeyError(f"A configuração {cid!r} não pertence à grelha de {spec.name!r}.")
-
+        _, params = self._resolve_config(spec, cid)
         data = self.prepare(data)
+        return self._fit_pipeline(data[self.columns], data[self.task.target], spec, params)
+
+    def fold_pipeline(self, data, spec, cid=None, fold=-1):
+        """
+        Treina uma configuração no treino de UM fold e devolve a validação desse fold
+
+        Serve para interpretar os modelos (importância por permutação, gráficos) só com os
+        dados de desenvolvimento, sem tocar no teste. O resultado é o modelo que a validação
+        cruzada avaliou nesse fold.
+
+        Parameters:
+            data (pd.DataFrame): Coorte de treino completa
+            spec (ModelSpec): O modelo
+            cid (str | None): Configuração; por omissão, a melhor do modelo
+            fold (int): Número do fold como no CSV (1, 2, ...) ou -1 para o último
+
+        Returns:
+            tuple[Pipeline, pd.DataFrame, pd.Series]: pipeline treinado, colunas originais da
+                validação do fold e alvo da validação
+        """
+        _, params = self._resolve_config(spec, cid)
+        data = self.prepare(data)
+        folds = list(self.splitter.split(data[self.task.date_col]))
+        train, valid = folds[fold - 1] if fold > 0 else folds[fold]
         X, y = data[self.columns], data[self.task.target]
-        steps = []
-        A = X
-        if spec.preprocess:
-            prep = self.make_preprocessor()
-            A = prep.fit_transform(X, y)
-            steps += prep.steps if isinstance(prep, Pipeline) else [("prep", prep)]
-        if spec.drop_features:
-            dropper = ColumnDropper(spec.drop_features).fit(A)
-            A = dropper.transform(A)
-            steps.append(("drop", dropper))
-        A_fit, y_fit = self._sample(spec, A, y)
-        model = spec.make(configs[cid]).fit(A_fit, y_fit)
-        steps.append(("model", model))
-        return Pipeline(steps)
+        pipe = self._fit_pipeline(X.iloc[train], y.iloc[train], spec, params)
+        return pipe, X.iloc[valid], y.iloc[valid]
