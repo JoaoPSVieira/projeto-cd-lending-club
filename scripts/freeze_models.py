@@ -99,11 +99,6 @@ def main(argv=None):
     if record["uncommitted_code_changes"]:
         print("\nAVISO: há mudanças por gravar em src/ ou scripts/. Fazer commit do código e "
               "congelar de novo (--refit), para o JSON apontar para o código que treinou os modelos.")
-    print("\nA seguir (depois de congelar as duas tarefas):\n"
-          "    git add reports/results/regression_frozen.json reports/results/classification_frozen.json\n"
-          '    git commit -m "Modelos congelados antes do teste de 2015"\n'
-          f"    git tag {TAG}\n"
-          "    git push && git push --tags")
 
 
 if __name__ == "__main__":
