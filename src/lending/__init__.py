@@ -42,4 +42,5 @@ Módulos:
     model_catalog Modelos e grelhas da secção 3 (regression_specs, classification_specs).
     knn           kNN de raiz em NumPy (NeighborSearch, KNNRegressor, KNNClassifier).
     model_analysis Tabelas e gráficos dos resultados da validação cruzada (CVAnalysis).
+    final_evaluation Congelar os modelos e avaliá-los no teste de 2015 (FinalEvaluation).
 """

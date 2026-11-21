@@ -1,0 +1,196 @@
+{
+  "task": "regression",
+  "tag": "modelos-congelados",
+  "final_model": "LightGBM",
+  "models": [
+    {
+      "model": "LightGBM",
+      "config_id": "618fcc2f32",
+      "params": {
+        "learning_rate": 0.05,
+        "num_leaves": 63
+      },
+      "preprocess": true,
+      "max_train_rows": null,
+      "drop_features": [],
+      "threshold": null,
+      "cv": {
+        "mae": "2.144 ± 0.419",
+        "rmse": "2.697 ± 0.494",
+        "r2": "0.603 ± 0.157"
+      },
+      "file": "regression/lightgbm.joblib",
+      "sha256": "1662fb9199564aff0452949cf3538125d717d479230838d9789aa8c0e218fb49",
+      "size_mb": 1.0,
+      "fit_seconds": 26.0,
+      "n_train": 370278
+    },
+    {
+      "model": "MLP",
+      "config_id": "22ac187eb8",
+      "params": {
+        "hidden_layers": [
+          256,
+          128,
+          64
+        ],
+        "learning_rate": 0.0003
+      },
+      "preprocess": true,
+      "max_train_rows": null,
+      "drop_features": [],
+      "threshold": null,
+      "cv": {
+        "mae": "2.165 ± 0.346",
+        "rmse": "2.723 ± 0.414",
+        "r2": "0.600 ± 0.141"
+      },
+      "file": "regression/mlp.joblib",
+      "sha256": "3e010a4bac11e3f7818c76ba3213ddd02d6a1ea880ced9de21f18d9bb6a67bea",
+      "size_mb": 0.7,
+      "fit_seconds": 58.4,
+      "n_train": 370278
+    },
+    {
+      "model": "Ridge",
+      "config_id": "4ef76c1b58",
+      "params": {
+        "alpha": 10.0
+      },
+      "preprocess": true,
+      "max_train_rows": null,
+      "drop_features": [],
+      "threshold": null,
+      "cv": {
+        "mae": "2.221 ± 0.332",
+        "rmse": "2.776 ± 0.388",
+        "r2": "0.587 ± 0.133"
+      },
+      "file": "regression/ridge.joblib",
+      "sha256": "b1792907296173f5a1e46f414fb0ba625a7451103a5d388732dcf3921696a9bb",
+      "size_mb": 0.0,
+      "fit_seconds": 8.6,
+      "n_train": 370278
+    },
+    {
+      "model": "Random Forest",
+      "config_id": "bd4704e0b4",
+      "params": {
+        "max_features": 0.3,
+        "min_samples_leaf": 10
+      },
+      "preprocess": true,
+      "max_train_rows": null,
+      "drop_features": [],
+      "threshold": null,
+      "cv": {
+        "mae": "2.257 ± 0.292",
+        "rmse": "2.821 ± 0.329",
+        "r2": "0.576 ± 0.121"
+      },
+      "file": "regression/random_forest.joblib",
+      "sha256": "dc82b6eb64eb2d6e19da7654866931b87c97bdffb0e7467a1a0370900050f0ea",
+      "size_mb": 103.6,
+      "fit_seconds": 68.3,
+      "n_train": 370278
+    },
+    {
+      "model": "Árvore",
+      "config_id": "703cee409a",
+      "params": {
+        "max_depth": 12,
+        "min_samples_leaf": 50
+      },
+      "preprocess": true,
+      "max_train_rows": null,
+      "drop_features": [],
+      "threshold": null,
+      "cv": {
+        "mae": "2.445 ± 0.290",
+        "rmse": "3.078 ± 0.328",
+        "r2": "0.496 ± 0.131"
+      },
+      "file": "regression/rvore.joblib",
+      "sha256": "bf5607c8cb1a13d53425849fb0b35257fe8c30f5ef052b3666699e850af51d4d",
+      "size_mb": 0.1,
+      "fit_seconds": 28.4,
+      "n_train": 370278
+    },
+    {
+      "model": "kNN",
+      "config_id": "a786e23103",
+      "params": {
+        "n_neighbors": 31,
+        "weights": "distance"
+      },
+      "preprocess": true,
+      "max_train_rows": 50000,
+      "drop_features": [],
+      "threshold": null,
+      "cv": {
+        "mae": "2.490 ± 0.153",
+        "rmse": "3.176 ± 0.162",
+        "r2": "0.471 ± 0.075"
+      },
+      "file": "regression/knn.joblib",
+      "sha256": "e5c0cc808aea7c8fc88076bd406d336c8c180ae5aee6f3a07027eae4dd09ad52",
+      "size_mb": 7.2,
+      "fit_seconds": 7.9,
+      "n_train": 50000
+    },
+    {
+      "model": "Mediana por prazo",
+      "config_id": "3d07651230",
+      "params": {},
+      "preprocess": false,
+      "max_train_rows": null,
+      "drop_features": [],
+      "threshold": null,
+      "cv": {
+        "mae": "3.144 ± 0.196",
+        "rmse": "3.929 ± 0.194",
+        "r2": "0.195 ± 0.056"
+      },
+      "file": "regression/mediana_por_prazo.joblib",
+      "sha256": "6456640db9d6cd397a75c60400e28b7a1774208e1b1fd1b1d6a2f3c8bed557e7",
+      "size_mb": 0.0,
+      "fit_seconds": 0.1,
+      "n_train": 370278
+    },
+    {
+      "model": "Mediana",
+      "config_id": "89a4b154fd",
+      "params": {},
+      "preprocess": false,
+      "max_train_rows": null,
+      "drop_features": [],
+      "threshold": null,
+      "cv": {
+        "mae": "3.512 ± 0.162",
+        "rmse": "4.404 ± 0.151",
+        "r2": "-0.011 ± 0.019"
+      },
+      "file": "regression/mediana.joblib",
+      "sha256": "d63bb3d32f12dd4b0ba2f4eb00c5e3f4680a20f973927980860d471ca2a33e63",
+      "size_mb": 0.0,
+      "fit_seconds": 0.1,
+      "n_train": 370278
+    }
+  ],
+  "train": {
+    "rows": 370278,
+    "first": "2013-01-01",
+    "last": "2014-12-01"
+  },
+  "frozen_at": "2026-11-21T20:36:35",
+  "git_commit": "1b4a196",
+  "uncommitted_code_changes": false,
+  "versions": {
+    "numpy": "2.5.3",
+    "pandas": "3.0.6",
+    "scikit-learn": "1.9.1",
+    "lightgbm": "4.7.0",
+    "tensorflow": "2.21.0",
+    "keras": "3.15.1"
+  }
+}
