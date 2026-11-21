@@ -1,0 +1,21 @@
+,coluna,treino,teste,em falta treino (%),em falta teste (%),PSI
+regressão,int_rate,14.05,12.60,0.0,0.0,0.126
+regressão,dti,17.74,19.15,0.0,0.0,0.035
+regressão,revol_util,56.74,53.84,0.1,0.0,0.019
+regressão,emp_length,6.15,6.03,4.9,5.7,0.011
+regressão,purpose,debt_consolidation (60%),debt_consolidation (59%),0.0,0.0,0.006
+regressão,loan_amnt,14809.38,15239.23,0.0,0.0,0.005
+regressão,home_ownership,MORTGAGE (52%),MORTGAGE (49%),0.0,0.0,0.004
+regressão,fico_range_low,693.41,693.65,0.0,0.0,0.003
+regressão,annual_inc,74264.01,76968.39,0.0,0.0,0.003
+regressão,term,42.96,43.86,0.0,0.0,0.0
+classificação,purpose,debt_consolidation (45%),debt_consolidation (57%),0.0,0.0,0.485
+classificação,dti,13.07,18.48,0.0,0.0,0.429
+classificação,fico_range_low,713.06,693.64,0.0,0.0,0.371
+classificação,loan_amnt,9533.78,12806.10,0.0,0.0,0.199
+classificação,revol_util,48.03,52.28,0.3,0.0,0.154
+classificação,int_rate,11.23,11.28,0.0,0.0,0.13
+classificação,grade,A (31%),B (32%),0.0,0.0,0.06
+classificação,home_ownership,RENT (50%),MORTGAGE (46%),0.0,0.0,0.044
+classificação,annual_inc,67495.95,74526.24,0.0,0.0,0.034
+classificação,target,12.3% Default,14.9% Default,0.0,0.0,0.006
