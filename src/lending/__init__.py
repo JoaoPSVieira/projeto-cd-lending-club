@@ -41,4 +41,5 @@ Módulos:
     boosting      LightGBM com paragem antecipada nas linhas mais recentes.
     model_catalog Modelos e grelhas da secção 3 (regression_specs, classification_specs).
     knn           kNN de raiz em NumPy (NeighborSearch, KNNRegressor, KNNClassifier).
+    model_analysis Tabelas e gráficos dos resultados da validação cruzada (CVAnalysis).
 """
