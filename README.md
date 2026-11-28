@@ -105,7 +105,7 @@ Parte 2 (modelação):
 
 ## Modelos treinados
 
-A pasta `models/` (cerca de 120 MB) não está no Git: está no OneDrive, em LINK_DO_ONEDRIVE. Para a usar, extrair para `models/` na raiz do projeto. O notebook 05 confirma, antes de ler cada modelo, que o ficheiro é o congelado (hash SHA-256 em `reports/results/<tarefa>_frozen.json`).
+A pasta `models/` (cerca de 120 MB) não está no Git: está no OneDrive (https://testuma-my.sharepoint.com/:f:/g/personal/2103823_student_uma_pt/IgBQpc0LT1k2RoN-6hNmgbb5Ac5_R05nP03Qi1bURcoACxQ?e=agd80b). Para a usar, extrair para `models/` na raiz do projeto. O notebook 05 confirma, antes de ler cada modelo, que o ficheiro é o congelado (hash SHA-256 em `reports/results/<tarefa>_frozen.json`).
 
 ## Entrega da Parte 1
 
